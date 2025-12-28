@@ -4,11 +4,46 @@ build-backend = "uv_build"
 
 [project]
 name = "jsonlt-python"
-version = "0.1.0a1"
-description = "A library for using a JSON Lines (JSONL) file as a lightweight database."
+version = "0.1.0a2"
+description = "Reference implementation of the JSONLT (JSON Lines Table) specification for Python."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
+keywords = [
+  "append-only",
+  "data-format",
+  "database",
+  "json-lines",
+  "jsonl",
+  "jsonlines",
+  "jsonlt",
+  "version-control",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Free Threading :: 1 - Unstable",
+  "Topic :: Database",
+  "Topic :: File Formats :: JSON",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
 dependencies = ["typing-extensions>=4.15.0"]
+
+[project.urls]
+Changelog = "https://github.com/jsonlt/jsonlt-python/blob/main/CHANGELOG.md"
+Documentation = "https://jsonlt.org/docs"
+Homepage = "https://jsonlt.org"
+Issues = "https://github.com/jsonlt/jsonlt-python/issues"
+Repository = "https://github.com/jsonlt/jsonlt-python"
 
 [dependency-groups]
 dev = [
