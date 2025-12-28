@@ -794,7 +794,8 @@ class TestTransactionMagicMethods:
         try:
             result = repr(tx)
             assert "Transaction(" in result
-            assert str(table_path) in result
+            # Use name to avoid Windows path separator issues
+            assert table_path.name in result
             assert "key='id'" in result
             assert "active" in result
         finally:
@@ -809,7 +810,8 @@ class TestTransactionMagicMethods:
 
         result = repr(tx)
         assert "Transaction(" in result
-        assert str(table_path) in result
+        # Use name to avoid Windows path separator issues
+        assert table_path.name in result
         assert "key='id'" in result
         assert "finalized" in result
 
