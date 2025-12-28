@@ -160,7 +160,7 @@ test-conformance *args:
 
 # Run tests with coverage
 test-coverage *args:
-  pytest -m "not benchmark" --cov={{package}} --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml --cov-report=json "$@"
+  pytest -m "not benchmark" --cov={{module}} --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml --cov-report=json "$@"
 
 # RUn documentation tests
 test-examples *args:
