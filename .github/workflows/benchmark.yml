@@ -31,7 +31,7 @@ jobs:
   benchmark:
     name: "Benchmark (${{ matrix.shard }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     permissions:
       contents: read
       id-token: write
@@ -39,14 +39,39 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: "load-reload-get"
-            filter: "TestBenchLoad or TestBenchReload or TestBenchGet"
-          - shard: "all-find"
-            filter: "TestBenchAll or TestBenchFind"
+          # ~38 tests each for load/reload
+          - shard: "load-reload"
+            filter: "TestBenchLoad or TestBenchReload"
+          # 25 tests
+          - shard: "get"
+            filter: "TestBenchGet"
+          # 25 tests
+          - shard: "all"
+            filter: "TestBenchAll"
+          # 43 tests (find_high=19, find_other=24)
+          - shard: "find"
+            filter: "TestBenchFind"
+          # 18 tests
+          - shard: "find-one"
+            filter: "TestBenchFindOne"
+          # 32 tests
           - shard: "write-compact"
             filter: "TestBenchPut or TestBenchBatchWrite or TestBenchCompact"
-          - shard: "keys-items-count-has-delete"
-            filter: "TestBenchKeys or TestBenchItems or TestBenchCount or TestBenchHas or TestBenchDelete"
+          # 31 tests
+          - shard: "keys-delete"
+            filter: "TestBenchKeys or TestBenchDelete"
+          # 25 tests
+          - shard: "items"
+            filter: "TestBenchItems"
+          # 25 tests
+          - shard: "count"
+            filter: "TestBenchCount"
+          # 31 tests
+          - shard: "has"
+            filter: "TestBenchHas"
+          # 18 tests
+          - shard: "memory"
+            filter: "TestMemory"
 
     steps:
       - name: Checkout code
