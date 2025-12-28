@@ -18,7 +18,7 @@ from ._keys import Key, KeySpecifier
 from ._table import Table
 from ._transaction import Transaction
 
-__version__ = version("jsonlt")
+__version__ = version("jsonlt-python")
 
 __all__ = [
     "ConflictError",

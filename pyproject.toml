@@ -3,7 +3,7 @@ requires = ["uv_build>=0.9.11,<0.10.0"]
 build-backend = "uv_build"
 
 [project]
-name = "jsonlt"
+name = "jsonlt-python"
 version = "0.0.0"
 description = "A library for using a JSON Lines (JSONL) file as a lightweight database."
 readme = "README.md"
@@ -172,3 +172,6 @@ ignore-variadic-names = true
   "S101",    # assert statements in tests
   "PLR2004", # magic values in assertions in tests
 ]
+
+[tool.uv.build-backend]
+module-name = "jsonlt"
