@@ -217,7 +217,7 @@ verify-testpypi version:
   uv venv --directory "${tmp_dir}" --python 3.10 --no-project --no-cache --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/"
   for i in 1 2 3 4 5; do
     echo "Attempt $i: Installing {{package}}=={{version}} from TestPyPI..."
-    if uv pip install --directory "${tmp_dir}" --no-cache --strict --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/" "{{package}}=={{version}}"; then
+    if uv pip install --directory "${tmp_dir}" --no-cache --strict --index-strategy unsafe-best-match --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/" "{{package}}=={{version}}"; then
       break
     fi
     if [ "$i" -lt 5 ]; then
