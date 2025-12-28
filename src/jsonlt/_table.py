@@ -569,48 +569,42 @@ class Table(ReadableMixin):
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
         # Atomically replace file
+        # On Windows, we must release the lock before atomic_replace because
+        # you can't rename to a locked file. We accept the small race window.
         try:
             if self._path.exists():
+                # Read current content under lock
                 with (
                     self._path.open("r+b") as f,
                     exclusive_lock(f, self._lock_timeout),
                 ):
-                    # Reload state using locked handle (Windows-compatible)
                     content = f.read()
                     self._load_from_content(content)
-                    # Build lines from fresh header
                     lines = []
                     if self._header is not None:
                         lines.append(serialize_header(self._header))
-                    atomic_replace(self._path, lines)
-                    self._state = {}
-                    self._cached_sorted_keys = None
-                    try:
-                        stat = self._path.stat()
-                        self._file_mtime = stat.st_mtime
-                        self._file_size = stat.st_size
-                    except OSError:
-                        pass
-            elif lines:
-                # File doesn't exist - create with header if present
+                # Lock released, now do atomic replace
+                atomic_replace(self._path, lines)
+                self._state = {}
+                self._cached_sorted_keys = None
                 try:
-                    with (
-                        self._path.open("xb") as f,
-                        exclusive_lock(f, self._lock_timeout),
-                    ):
-                        atomic_replace(self._path, lines)
-                        self._state = {}
-                        self._cached_sorted_keys = None
-                        try:
-                            stat = self._path.stat()
-                            self._file_mtime = stat.st_mtime
-                            self._file_size = stat.st_size
-                        except OSError:
-                            pass
-                except FileExistsError:
-                    # File was created - retry
-                    self.clear()
-                    return
+                    stat = self._path.stat()
+                    self._file_mtime = stat.st_mtime
+                    self._file_size = stat.st_size
+                except OSError:
+                    pass
+            elif lines:
+                # File doesn't exist - create with header
+                # No lock needed since atomic_replace handles races via temp file
+                atomic_replace(self._path, lines)
+                self._state = {}
+                self._cached_sorted_keys = None
+                try:
+                    stat = self._path.stat()
+                    self._file_mtime = stat.st_mtime
+                    self._file_size = stat.st_size
+                except OSError:
+                    pass
             else:
                 # No header, nothing to write for empty table
                 self._state = {}
@@ -650,36 +644,28 @@ class Table(ReadableMixin):
                     if self._header is not None:
                         lines.append(serialize_header(self._header))
                     lines.extend(serialize_json(r) for r in self._sorted_records())
-                    atomic_replace(self._path, lines)
-                    try:
-                        stat = self._path.stat()
-                        self._file_mtime = stat.st_mtime
-                        self._file_size = stat.st_size
-                    except OSError:
-                        pass
+                # Lock released, now do atomic replace (Windows can't rename locked)
+                atomic_replace(self._path, lines)
+                try:
+                    stat = self._path.stat()
+                    self._file_mtime = stat.st_mtime
+                    self._file_size = stat.st_size
+                except OSError:
+                    pass
             elif self._header is not None or self._state:
                 # File doesn't exist but we have in-memory content - create it
-                # Build lines from current in-memory state (nothing to reload)
+                # No lock needed since atomic_replace handles races via temp file
                 lines = []
                 if self._header is not None:
                     lines.append(serialize_header(self._header))
                 lines.extend(serialize_json(r) for r in self._sorted_records())
+                atomic_replace(self._path, lines)
                 try:
-                    with (
-                        self._path.open("xb") as f,
-                        exclusive_lock(f, self._lock_timeout),
-                    ):
-                        atomic_replace(self._path, lines)
-                        try:
-                            stat = self._path.stat()
-                            self._file_mtime = stat.st_mtime
-                            self._file_size = stat.st_size
-                        except OSError:
-                            pass
-                except FileExistsError:
-                    # File was created - retry
-                    self.compact()
-                    return
+                    stat = self._path.stat()
+                    self._file_mtime = stat.st_mtime
+                    self._file_size = stat.st_size
+                except OSError:
+                    pass
             else:
                 # No header, no records - nothing to write
                 self._state = {}
