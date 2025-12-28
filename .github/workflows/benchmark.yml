@@ -29,12 +29,24 @@ permissions:
 
 jobs:
   benchmark:
-    name: "Benchmark"
+    name: "Benchmark (${{ matrix.shard }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     permissions:
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: "load-reload-get"
+            filter: "TestBenchLoad or TestBenchReload or TestBenchGet"
+          - shard: "all-find"
+            filter: "TestBenchAll or TestBenchFind"
+          - shard: "write-compact"
+            filter: "TestBenchPut or TestBenchBatchWrite or TestBenchCompact"
+          - shard: "keys-items-count-has-delete"
+            filter: "TestBenchKeys or TestBenchItems or TestBenchCount or TestBenchHas or TestBenchDelete"
 
     steps:
       - name: Checkout code
@@ -50,4 +62,4 @@ jobs:
         uses: CodSpeedHQ/action@346a2d8a8d9d38909abd0bc3d23f773110f076ad # v4.4.1
         with:
           mode: simulation
-          run: uv run pytest -m benchmark --codspeed
+          run: uv run pytest -m benchmark -k "${{ matrix.filter }}" --codspeed
