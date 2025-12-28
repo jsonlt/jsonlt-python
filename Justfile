@@ -186,22 +186,46 @@ vale-sync:
 version:
   uv version --package {{package}} | awk '{print $2}'
 
-# Verify a PyPi release
+# Verify a PyPi release (with retries for index propagation)
 [script]
 verify-pypi version:
   tmp_dir="/tmp/{{package}}-verify-pypi/venv"
   rm -fr "${tmp_dir}"
   mkdir -p "${tmp_dir}"
   uv venv --directory "${tmp_dir}" --python 3.10 --no-project --no-cache
-  uv pip install --directory "${tmp_dir}" --no-cache --strict "{{package}}=={{version}}"
+  for i in 1 2 3 4 5; do
+    echo "Attempt $i: Installing {{package}}=={{version}} from PyPI..."
+    if uv pip install --directory "${tmp_dir}" --no-cache --strict "{{package}}=={{version}}"; then
+      break
+    fi
+    if [ "$i" -lt 5 ]; then
+      echo "Package not yet available, waiting 10 seconds..."
+      sleep 10
+    else
+      echo "Failed to install after 5 attempts"
+      exit 1
+    fi
+  done
   uv run --directory "${tmp_dir}" --no-project python -c "import {{module}}; print({{module}}.__version__)"
 
-# Verify a TestPyPi release
+# Verify a TestPyPi release (with retries for index propagation)
 [script]
 verify-testpypi version:
   tmp_dir="/tmp/{{package}}-verify-testpypi/venv"
   rm -fr "${tmp_dir}"
   mkdir -p "${tmp_dir}"
   uv venv --directory "${tmp_dir}" --python 3.10 --no-project --no-cache --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/"
-  uv pip install --directory "${tmp_dir}" --no-cache --strict --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/" "{{package}}=={{version}}"
+  for i in 1 2 3 4 5; do
+    echo "Attempt $i: Installing {{package}}=={{version}} from TestPyPI..."
+    if uv pip install --directory "${tmp_dir}" --no-cache --strict --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/" "{{package}}=={{version}}"; then
+      break
+    fi
+    if [ "$i" -lt 5 ]; then
+      echo "Package not yet available, waiting 10 seconds..."
+      sleep 10
+    else
+      echo "Failed to install after 5 attempts"
+      exit 1
+    fi
+  done
   uv run --directory "${tmp_dir}" --no-project python -c "import {{module}}; print({{module}}.__version__)"
