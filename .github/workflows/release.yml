@@ -83,6 +83,7 @@ jobs:
           enable-cache: false # No checkout, so no dependency files to hash
 
       - name: Install from wheel
+        shell: bash
         run: |
           uv venv
           uv pip install dist/*.whl
