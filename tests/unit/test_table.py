@@ -3,7 +3,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from jsonlt import InvalidKeyError, LimitError, Table
+from jsonlt import FileError, InvalidKeyError, LimitError, Table
+
+from tests.fakes.fake_filesystem import FakeFileSystem
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1095,3 +1097,176 @@ class TestTableReload:
 
         keys2 = table.keys()
         assert keys2 == ["a", "b", "c"]
+
+
+class TestFileSystemEdgeCases:
+    """Tests for edge cases using FakeFileSystem.
+
+    Note: The FakeFileSystem is only used for stat, open_locked, atomic_replace,
+    and ensure_parent_dir operations. The initial _load() still reads from the
+    real filesystem. Tests must create real files on disk when testing loading.
+
+    Some tests access protected members to verify internal state changes; this
+    is intentional for testing implementation details.
+    """
+
+    def test_load_empty_file_with_header_but_no_ops(self, tmp_path: "Path") -> None:
+        """File with header but no operations has empty state."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+        # Create real file on disk for _load()
+        _ = table_path.write_bytes(b'{"$jsonlt":{"version":1,"key":"id"}}\n')
+        # Also set in fake_fs for stat operations
+        fake_fs.set_content(table_path, b'{"$jsonlt":{"version":1,"key":"id"}}\n')
+
+        table = Table(table_path, _fs=fake_fs)
+
+        assert table.count() == 0
+        assert table.keys() == []
+
+    def test_load_from_content_empty(self, tmp_path: "Path") -> None:
+        """_load_from_content with empty bytes clears state."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+        # Create real file on disk for _load()
+        _ = table_path.write_bytes(b'{"id":"alice"}\n')
+        # Also set in fake_fs for stat operations
+        fake_fs.set_content(table_path, b'{"id":"alice"}\n')
+
+        table = Table(table_path, key="id", _fs=fake_fs)
+        assert table.count() == 1
+
+        # Simulate reload with empty content (testing internal method)
+        table._load_from_content(b"")  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+        assert table._state == {}  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+
+    def test_resolve_key_specifier_empty_no_key(self, tmp_path: "Path") -> None:
+        """Empty file with no key specifier returns None."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+        # File does not exist - table should be empty
+
+        table = Table(table_path, _fs=fake_fs)
+
+        assert table.key_specifier is None
+        assert table.count() == 0
+
+    def test_reload_if_changed_stat_fails(self, tmp_path: "Path") -> None:
+        """_reload_if_changed raises when stat fails during reload."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+        # Create real file on disk for _load()
+        _ = table_path.write_bytes(b'{"id":"alice"}\n')
+        # Also set in fake_fs for stat operations
+        fake_fs.set_content(table_path, b'{"id":"alice"}\n')
+
+        table = Table(table_path, key="id", _fs=fake_fs)
+        assert table.count() == 1
+
+        # Make stat fail
+        fake_fs.fail_stat.add(table_path)
+
+        # _reload_if_changed should raise FileError since stat fails
+        # _load() uses path.exists() + read_table_file() but _update_file_stats() fails
+        with pytest.raises(FileError, match="simulated stat error"):
+            # Testing internal method
+            table._reload_if_changed(0.0, 0)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+
+    def test_write_file_not_found_then_exists(self, tmp_path: "Path") -> None:
+        """Test that put creates file in fake filesystem."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+
+        table = Table(table_path, key="id", _fs=fake_fs)
+
+        # First put should create the file in the fake filesystem
+        table.put({"id": "alice"})
+
+        assert table.get("alice") == {"id": "alice"}
+
+    def test_try_update_stats_ignores_file_error(self, tmp_path: "Path") -> None:
+        """_try_update_stats silently ignores FileError and preserves stats."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+        # Create real file on disk for _load()
+        _ = table_path.write_bytes(b'{"id":"alice"}\n')
+        # Also set in fake_fs for stat operations
+        fake_fs.set_content(table_path, b'{"id":"alice"}\n')
+
+        table = Table(table_path, key="id", _fs=fake_fs)
+        # Capture stats via internal attributes (testing implementation detail)
+        old_mtime = table._file_mtime  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+        old_size = table._file_size  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+
+        # Make stat fail
+        fake_fs.fail_stat.add(table_path)
+
+        # _try_update_stats should not raise
+        table._try_update_stats()  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+
+        # Stats should remain unchanged
+        assert table._file_mtime == old_mtime  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+        assert table._file_size == old_size  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+
+    def test_auto_reload_disabled_uses_cache(self, tmp_path: "Path") -> None:
+        """Table with auto_reload=False uses cached state."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+        # Create real file on disk for _load()
+        _ = table_path.write_bytes(b'{"id":"alice"}\n')
+        # Also set in fake_fs for stat operations
+        fake_fs.set_content(table_path, b'{"id":"alice"}\n')
+
+        table = Table(table_path, key="id", auto_reload=False, _fs=fake_fs)
+        assert table.get("alice") == {"id": "alice"}
+
+        # Make stat fail - with auto_reload=False, this won't be called on get
+        fake_fs.fail_stat.add(table_path)
+
+        # Should still be able to read from cache since auto_reload is disabled
+        assert table.get("alice") == {"id": "alice"}
+
+    def test_clear_on_file_with_header(self, tmp_path: "Path") -> None:
+        """clear() uses atomic_replace when file has header."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+        # Create real file on disk for _load()
+        _ = table_path.write_bytes(
+            b'{"$jsonlt":{"version":1,"key":"id"}}\n{"id":"alice"}\n'
+        )
+        # Also set in fake_fs for stat operations
+        fake_fs.set_content(
+            table_path, b'{"$jsonlt":{"version":1,"key":"id"}}\n{"id":"alice"}\n'
+        )
+
+        table = Table(table_path, _fs=fake_fs)
+        assert table.count() == 1
+
+        # clear() uses _fs.stat to check existence, then _fs.atomic_replace
+        table.clear()
+
+        # Count should be 0 after clear
+        assert table.count() == 0
+
+        # File should exist with just header via atomic_replace
+        assert table_path in fake_fs.files
+        content = fake_fs.get_content(table_path)
+        assert b'"$jsonlt"' in content
+        assert b'"alice"' not in content
+
+    def test_compact_recreates_deleted_file(self, tmp_path: "Path") -> None:
+        """compact() recreates file if there's in-memory state."""
+        fake_fs = FakeFileSystem()
+        table_path = tmp_path / "test.jsonlt"
+
+        # Create table and add record (uses fake_fs for write)
+        table = Table(table_path, key="id", _fs=fake_fs)
+        table.put({"id": "alice"})
+
+        # Delete the file from fake_fs
+        del fake_fs.files[table_path]
+
+        # Compact should recreate the file via atomic_replace
+        table.compact()
+
+        assert table_path in fake_fs.files

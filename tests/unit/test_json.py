@@ -176,6 +176,21 @@ class TestNestingDepthEnforcement:
         with pytest.raises(LimitError, match="nesting depth exceeds maximum"):
             _ = parse_json_line(json_str)
 
+    def test_recursion_error_during_depth_check(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """RecursionError during depth check converts to LimitError."""
+        from jsonlt import _json  # noqa: PLC0415  # pyright: ignore[reportPrivateUsage]
+
+        def raise_recursion(_value: object) -> int:
+            msg = "simulated"
+            raise RecursionError(msg)
+
+        monkeypatch.setattr(_json, "json_nesting_depth", raise_recursion)
+
+        with pytest.raises(LimitError, match="nesting depth exceeds maximum"):
+            _ = parse_json_line('{"id": 1}')
+
 
 class TestSerializeJson:
     def test_sorts_keys_alphabetically(self) -> None:

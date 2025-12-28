@@ -121,10 +121,10 @@ def atomic_replace(path: Path, lines: "Sequence[str]") -> None:
         msg = f"cannot write file atomically: {e}"
         raise FileError(msg) from e
     finally:
-        # Clean up temp file if it still exists
-        if temp_fd != -1:
+        # Clean up temp file if it still exists (defensive cleanup)
+        if temp_fd != -1:  # pragma: no cover
             with contextlib.suppress(OSError):
                 os.close(temp_fd)
-        if temp_path is not None:
+        if temp_path is not None:  # pragma: no cover
             with contextlib.suppress(OSError):
                 temp_path.unlink()

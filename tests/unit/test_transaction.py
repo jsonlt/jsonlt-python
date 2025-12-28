@@ -3,7 +3,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from jsonlt import ConflictError, InvalidKeyError, Table, Transaction, TransactionError
+from jsonlt import (
+    ConflictError,
+    InvalidKeyError,
+    LimitError,
+    Table,
+    Transaction,
+    TransactionError,
+)
 
 if TYPE_CHECKING:
     from os import stat_result
@@ -243,6 +250,32 @@ class TestTransactionWriteOperations:
         ):
             _ = tx.delete("alice")
 
+    def test_put_key_length_limit_raises(self, tmp_path: "Path") -> None:
+        """Put with key exceeding 1024 bytes raises LimitError."""
+        table_path = tmp_path / "test.jsonlt"
+        table = Table(table_path, key="id")
+
+        long_key = "x" * 1030  # > 1024 bytes when serialized
+
+        with (
+            table.transaction() as tx,
+            pytest.raises(LimitError, match="key length"),
+        ):
+            tx.put({"id": long_key})
+
+    def test_put_record_size_limit_raises(self, tmp_path: "Path") -> None:
+        """Put with record exceeding 1 MiB raises LimitError."""
+        table_path = tmp_path / "test.jsonlt"
+        table = Table(table_path, key="id")
+
+        large_data = "x" * (1024 * 1024 + 1000)
+
+        with (
+            table.transaction() as tx,
+            pytest.raises(LimitError, match="record size"),
+        ):
+            tx.put({"id": "test", "data": large_data})
+
 
 class TestTransactionCommit:
     def test_commit_persists_writes(self, tmp_path: "Path") -> None:
@@ -467,6 +500,17 @@ class TestTransactionAfterCommitOrAbort:
             tx2.put({"id": "bob", "v": 2})
 
         assert table.count() == 2
+
+    def test_exit_when_already_finalized_returns_false(self, tmp_path: "Path") -> None:
+        """__exit__ returns False immediately if transaction already finalized."""
+        table_path = tmp_path / "test.jsonlt"
+        table = Table(table_path, key="id")
+
+        tx = table.transaction()
+        tx.commit()
+
+        result = tx.__exit__(None, None, None)
+        assert result is False
 
 
 class TestTransactionConflictDetection:

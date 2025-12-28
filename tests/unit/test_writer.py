@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from jsonlt._exceptions import FileError
-from jsonlt._writer import append_line, atomic_replace
+from jsonlt._writer import append_line, append_lines, atomic_replace
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -72,6 +72,40 @@ class TestAppendLine:
         append_line(path, '{"$jsonlt":{"version":1,"key":"id"}}')
 
         assert path.read_text() == '{"$jsonlt":{"version":1,"key":"id"}}\n'
+
+
+class TestAppendLines:
+    def test_appends_multiple_lines(self, tmp_path: "Path") -> None:
+        path = tmp_path / "test.jsonlt"
+        _ = path.write_text("")
+
+        append_lines(path, ['{"id":"a"}', '{"id":"b"}', '{"id":"c"}'])
+
+        assert path.read_text() == '{"id":"a"}\n{"id":"b"}\n{"id":"c"}\n'
+
+    def test_empty_lines_is_noop(self, tmp_path: "Path") -> None:
+        """Empty list does nothing (early return)."""
+        path = tmp_path / "test.jsonlt"
+        _ = path.write_text("existing\n")
+
+        append_lines(path, [])
+
+        assert path.read_text() == "existing\n"
+
+    def test_appends_to_existing_content(self, tmp_path: "Path") -> None:
+        path = tmp_path / "test.jsonlt"
+        _ = path.write_text('{"id":"existing"}\n')
+
+        append_lines(path, ['{"id":"new1"}', '{"id":"new2"}'])
+
+        expected = '{"id":"existing"}\n{"id":"new1"}\n{"id":"new2"}\n'
+        assert path.read_text() == expected
+
+    def test_raises_file_error_on_failure(self, tmp_path: "Path") -> None:
+        path = tmp_path / "nonexistent" / "dir" / "test.jsonlt"
+
+        with pytest.raises(FileError, match="cannot append to file"):
+            append_lines(path, ['{"id":"test"}'])
 
 
 class TestAtomicReplace:

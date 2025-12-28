@@ -6,7 +6,6 @@ with JSONLT files. It handles file loading, auto-reload, and read/write operatio
 
 # pyright: reportImportCycles=false
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 from typing_extensions import override
@@ -18,9 +17,9 @@ from ._exceptions import (
     FileError,
     InvalidKeyError,
     LimitError,
-    LockError,
     TransactionError,
 )
+from ._filesystem import FileSystem, RealFileSystem
 from ._header import serialize_header
 from ._json import serialize_json, utf8_byte_length
 from ._keys import (
@@ -31,12 +30,10 @@ from ._keys import (
     normalize_key_specifier,
     validate_key_arity,
 )
-from ._lock import exclusive_lock
 from ._readable import ReadableMixin
 from ._reader import parse_table_content, read_table_file
 from ._records import build_tombstone, extract_key, validate_record
 from ._state import compute_logical_state
-from ._writer import atomic_replace
 
 if TYPE_CHECKING:
     from ._header import Header
@@ -73,6 +70,7 @@ class Table(ReadableMixin):
         "_cached_sorted_keys",
         "_file_mtime",
         "_file_size",
+        "_fs",
         "_header",
         "_key_specifier",
         "_lock_timeout",
@@ -86,6 +84,7 @@ class Table(ReadableMixin):
     _auto_reload: bool
     _lock_timeout: float | None
     _max_file_size: int | None
+    _fs: FileSystem
     _header: "Header | None"
     _state: "dict[Key, JSONObject]"
     _file_mtime: float
@@ -101,6 +100,7 @@ class Table(ReadableMixin):
         auto_reload: bool = True,
         lock_timeout: float | None = None,
         max_file_size: int | None = None,
+        _fs: "FileSystem | None" = None,
     ) -> None:
         """Open or create a table at the given path.
 
@@ -116,6 +116,7 @@ class Table(ReadableMixin):
             max_file_size: Maximum allowed file size in bytes when loading
                 the file. If the file exceeds this limit, LimitError is raised.
                 If None (default), no limit is enforced.
+            _fs: Internal filesystem abstraction for testing. Do not use.
 
         Raises:
             FileError: If the file cannot be read.
@@ -129,6 +130,7 @@ class Table(ReadableMixin):
         self._auto_reload = auto_reload
         self._lock_timeout = lock_timeout
         self._max_file_size = max_file_size
+        self._fs = RealFileSystem() if _fs is None else _fs
 
         # These will be set by _load()
         self._header = None
@@ -243,13 +245,23 @@ class Table(ReadableMixin):
 
     def _update_file_stats(self) -> None:
         """Update cached file mtime and size for auto-reload detection."""
+        stats = self._fs.stat(self._path)
+        if not stats.exists:
+            msg = "cannot stat file: file does not exist"
+            raise FileError(msg)
+        self._file_mtime = stats.mtime
+        self._file_size = stats.size
+
+    def _try_update_stats(self) -> None:
+        """Update cached file stats, ignoring errors."""
         try:
-            stat = self._path.stat()
-            self._file_mtime = stat.st_mtime
-            self._file_size = stat.st_size
-        except OSError as e:
-            msg = f"cannot stat file: {e}"
-            raise FileError(msg) from e
+            stats = self._fs.stat(self._path)
+            if stats.exists:
+                self._file_mtime = stats.mtime
+                self._file_size = stats.size
+        except FileError:
+            # Ignore stat failures - stats will refresh on next read
+            pass
 
     def _reload_if_changed(self, cached_mtime: float, cached_size: int) -> None:
         """Reload file if stats differ from cached values.
@@ -262,14 +274,12 @@ class Table(ReadableMixin):
             cached_mtime: File mtime when transaction started.
             cached_size: File size when transaction started.
         """
-        try:
-            stat = self._path.stat()
-        except OSError:
-            # Can't stat - do full reload to be safe
+        stats = self._fs.stat(self._path)
+        if not stats.exists:
             self._load()
             return
 
-        if stat.st_mtime != cached_mtime or stat.st_size != cached_size:
+        if stats.mtime != cached_mtime or stats.size != cached_size:
             # File changed - full reload required
             self._load()
         # else: file unchanged, state is already current
@@ -332,7 +342,8 @@ class Table(ReadableMixin):
         if not self._auto_reload:
             return
 
-        if not self._path.exists():
+        stats = self._fs.stat(self._path)
+        if not stats.exists:
             # File was deleted - clear state
             if self._file_size != 0 or self._file_mtime != 0.0:
                 self._header = None
@@ -342,14 +353,7 @@ class Table(ReadableMixin):
                 self._file_size = 0
             return
 
-        try:
-            stat = self._path.stat()
-        except OSError:
-            # Can't stat file - don't reload
-            return
-
-        # Check if file changed
-        if stat.st_mtime != self._file_mtime or stat.st_size != self._file_size:
+        if stats.mtime != self._file_mtime or stats.size != self._file_size:
             self._load()
 
     @override
@@ -478,49 +482,29 @@ class Table(ReadableMixin):
         Returns:
             True if the key existed in the table (after reload), False otherwise.
         """
-        # Ensure parent directory exists
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._fs.ensure_parent_dir(self._path)
 
         try:
-            with self._path.open("r+b") as f, exclusive_lock(f, self._lock_timeout):
-                # Read current content using the locked handle (Windows-compatible)
+            with self._fs.open_locked(self._path, "r+b", self._lock_timeout) as f:
                 content = f.read()
-                # Parse and reload state from the content
                 self._load_from_content(content)
-                # Seek to end and write (no need to reopen)
-                # f is already at end after read, but be explicit
-                _ = f.seek(0, 2)  # Seek to end
+                _ = f.seek(0, 2)
                 encoded = (line + "\n").encode("utf-8")
                 _ = f.write(encoded)
-                f.flush()
-                _ = os.fsync(f.fileno())
-                # Update state and return whether key existed
+                f.sync()
                 return self._finalize_write(key, record)
         except FileNotFoundError:
-            # File doesn't exist - create it
             try:
-                with self._path.open("xb") as f, exclusive_lock(f, self._lock_timeout):
-                    # Write the line directly to the new file
+                with self._fs.open_locked(self._path, "xb", self._lock_timeout) as f:
                     encoded = (line + "\n").encode("utf-8")
                     _ = f.write(encoded)
-                    f.flush()
-                    _ = os.fsync(f.fileno())
-                    # Update state and return whether key existed
+                    f.sync()
                     return self._finalize_write(key, record)
             except FileExistsError:
-                # File was created between our check and open - retry
                 if _retries >= self._MAX_WRITE_RETRIES:
                     msg = "cannot acquire stable file handle after multiple retries"
                     raise FileError(msg) from None
                 return self._write_with_lock(line, key, record, _retries=_retries + 1)
-            except OSError as e:
-                msg = f"cannot create file: {e}"
-                raise FileError(msg) from e
-        except LockError:
-            raise
-        except OSError as e:
-            msg = f"cannot open file: {e}"
-            raise FileError(msg) from e
 
     def delete(self, key: Key) -> bool:
         """Delete a record by key.
@@ -565,55 +549,36 @@ class Table(ReadableMixin):
         if self._header is not None:
             lines.append(serialize_header(self._header))
 
-        # Ensure parent directory exists
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._fs.ensure_parent_dir(self._path)
 
         # Atomically replace file
         # On Windows, we must release the lock before atomic_replace because
         # you can't rename to a locked file. We accept the small race window.
-        try:
-            if self._path.exists():
-                # Read current content under lock
-                with (
-                    self._path.open("r+b") as f,
-                    exclusive_lock(f, self._lock_timeout),
-                ):
-                    content = f.read()
-                    self._load_from_content(content)
-                    lines = []
-                    if self._header is not None:
-                        lines.append(serialize_header(self._header))
-                # Lock released, now do atomic replace
-                atomic_replace(self._path, lines)
-                self._state = {}
-                self._cached_sorted_keys = None
-                try:
-                    stat = self._path.stat()
-                    self._file_mtime = stat.st_mtime
-                    self._file_size = stat.st_size
-                except OSError:
-                    pass
-            elif lines:
-                # File doesn't exist - create with header
-                # No lock needed since atomic_replace handles races via temp file
-                atomic_replace(self._path, lines)
-                self._state = {}
-                self._cached_sorted_keys = None
-                try:
-                    stat = self._path.stat()
-                    self._file_mtime = stat.st_mtime
-                    self._file_size = stat.st_size
-                except OSError:
-                    pass
-            else:
-                # No header, nothing to write for empty table
-                self._state = {}
-                self._cached_sorted_keys = None
-        except LockError:
-            raise
-        except OSError as e:
-            msg = f"cannot clear file: {e}"
-            raise FileError(msg) from e
+        stats = self._fs.stat(self._path)
+        if stats.exists:
+            # Read current content under lock
+            with self._fs.open_locked(self._path, "r+b", self._lock_timeout) as f:
+                content = f.read()
+                self._load_from_content(content)
+                lines = []
+                if self._header is not None:
+                    lines.append(serialize_header(self._header))
+            # Lock released, now do atomic replace
+            self._fs.atomic_replace(self._path, lines)
+            self._state = {}
+            self._cached_sorted_keys = None
+            self._try_update_stats()
+        elif lines:
+            # File doesn't exist - create with header
+            # No lock needed since atomic_replace handles races via temp file
+            self._fs.atomic_replace(self._path, lines)
+            self._state = {}
+            self._cached_sorted_keys = None
+            self._try_update_stats()
+        else:
+            # No header, nothing to write for empty table
+            self._state = {}
+            self._cached_sorted_keys = None
 
     def compact(self) -> None:
         """Compact the table to its minimal representation.
@@ -626,54 +591,35 @@ class Table(ReadableMixin):
             LockError: If file lock cannot be acquired within timeout.
             FileError: If file operations fail.
         """
-        # Ensure parent directory exists
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._fs.ensure_parent_dir(self._path)
 
         # Atomically replace file with compacted content
-        try:
-            if self._path.exists():
-                with (
-                    self._path.open("r+b") as f,
-                    exclusive_lock(f, self._lock_timeout),
-                ):
-                    # Reload state using locked handle (Windows-compatible)
-                    content = f.read()
-                    self._load_from_content(content)
-                    # Build lines from fresh state
-                    lines: list[str] = []
-                    if self._header is not None:
-                        lines.append(serialize_header(self._header))
-                    lines.extend(serialize_json(r) for r in self._sorted_records())
-                # Lock released, now do atomic replace (Windows can't rename locked)
-                atomic_replace(self._path, lines)
-                try:
-                    stat = self._path.stat()
-                    self._file_mtime = stat.st_mtime
-                    self._file_size = stat.st_size
-                except OSError:
-                    pass
-            elif self._header is not None or self._state:
-                # File doesn't exist but we have in-memory content - create it
-                # No lock needed since atomic_replace handles races via temp file
-                lines = []
+        stats = self._fs.stat(self._path)
+        if stats.exists:
+            with self._fs.open_locked(self._path, "r+b", self._lock_timeout) as f:
+                # Reload state using locked handle (Windows-compatible)
+                content = f.read()
+                self._load_from_content(content)
+                # Build lines from fresh state
+                lines: list[str] = []
                 if self._header is not None:
                     lines.append(serialize_header(self._header))
                 lines.extend(serialize_json(r) for r in self._sorted_records())
-                atomic_replace(self._path, lines)
-                try:
-                    stat = self._path.stat()
-                    self._file_mtime = stat.st_mtime
-                    self._file_size = stat.st_size
-                except OSError:
-                    pass
-            else:
-                # No header, no records - nothing to write
-                self._state = {}
-        except LockError:
-            raise
-        except OSError as e:
-            msg = f"cannot compact file: {e}"
-            raise FileError(msg) from e
+            # Lock released, now do atomic replace (Windows can't rename locked)
+            self._fs.atomic_replace(self._path, lines)
+            self._try_update_stats()
+        elif self._header is not None or self._state:
+            # File doesn't exist but we have in-memory content - create it
+            # No lock needed since atomic_replace handles races via temp file
+            lines = []
+            if self._header is not None:
+                lines.append(serialize_header(self._header))
+            lines.extend(serialize_json(r) for r in self._sorted_records())
+            self._fs.atomic_replace(self._path, lines)
+            self._try_update_stats()
+        else:
+            # No header, no records - nothing to write
+            self._state = {}
 
     # --- Transaction Operations ---
 
@@ -750,84 +696,57 @@ class Table(ReadableMixin):
             LockError: If file lock cannot be acquired within timeout.
             FileError: If file write fails.
         """
-        # Ensure parent directory exists
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._fs.ensure_parent_dir(self._path)
 
-        try:
-            if self._path.exists():
-                with (
-                    self._path.open("r+b") as f,
-                    exclusive_lock(f, self._lock_timeout),
-                ):
-                    # Read and reload if file changed (Windows-compatible)
-                    content = f.read()
-                    current_size = len(content)
-                    if current_size != start_size:
-                        # File changed - reload from content
-                        self._load_from_content(content)
-                    # Check for conflicts
+        stats = self._fs.stat(self._path)
+        if stats.exists:
+            with self._fs.open_locked(self._path, "r+b", self._lock_timeout) as f:
+                # Read and reload if file changed (Windows-compatible)
+                content = f.read()
+                current_size = len(content)
+                if current_size != start_size:
+                    # File changed - reload from content
+                    self._load_from_content(content)
+                # Check for conflicts
+                self._detect_conflicts(start_state, written_keys)
+                # Write all buffered lines using same handle
+                _ = f.seek(0, 2)  # Seek to end
+                for line in lines:
+                    encoded = (line + "\n").encode("utf-8")
+                    _ = f.write(encoded)
+                f.sync()
+                # Update state from buffer
+                self._apply_buffer_updates(buffer_updates)
+                self._try_update_stats()
+        else:
+            # File doesn't exist - create it
+            try:
+                with self._fs.open_locked(self._path, "xb", self._lock_timeout) as f:
+                    # Check for conflicts (should be none since start_state
+                    # was empty)
                     self._detect_conflicts(start_state, written_keys)
-                    # Write all buffered lines using same handle
-                    _ = f.seek(0, 2)  # Seek to end
+                    # Write all buffered lines
                     for line in lines:
                         encoded = (line + "\n").encode("utf-8")
                         _ = f.write(encoded)
-                    f.flush()
-                    _ = os.fsync(f.fileno())
+                    f.sync()
                     # Update state from buffer
                     self._apply_buffer_updates(buffer_updates)
-                    # Update file stats
-                    try:
-                        stat = self._path.stat()
-                        self._file_mtime = stat.st_mtime
-                        self._file_size = stat.st_size
-                    except OSError:
-                        pass  # Stats will be refreshed on next read
-            else:
-                # File doesn't exist - create it
-                try:
-                    with (
-                        self._path.open("xb") as f,
-                        exclusive_lock(f, self._lock_timeout),
-                    ):
-                        # Check for conflicts (should be none since start_state
-                        # was empty)
-                        self._detect_conflicts(start_state, written_keys)
-                        # Write all buffered lines
-                        for line in lines:
-                            encoded = (line + "\n").encode("utf-8")
-                            _ = f.write(encoded)
-                        f.flush()
-                        _ = os.fsync(f.fileno())
-                        # Update state from buffer
-                        self._apply_buffer_updates(buffer_updates)
-                        # Update file stats
-                        try:
-                            stat = self._path.stat()
-                            self._file_mtime = stat.st_mtime
-                            self._file_size = stat.st_size
-                        except OSError:
-                            pass  # Stats will be refreshed on next read
-                except FileExistsError:
-                    # File was created between our check and open - retry
-                    if _retries >= self._MAX_WRITE_RETRIES:
-                        msg = "cannot acquire stable file handle after multiple retries"
-                        raise FileError(msg) from None
-                    self._commit_transaction_buffer(
-                        lines,
-                        start_state,
-                        written_keys,
-                        buffer_updates,
-                        start_mtime,
-                        start_size,
-                        _retries=_retries + 1,
-                    )
-                    return
-        except (LockError, ConflictError):
-            raise
-        except OSError as e:
-            msg = f"cannot write file: {e}"
-            raise FileError(msg) from e
+                    self._try_update_stats()
+            except FileExistsError:
+                # File was created between our check and open - retry
+                if _retries >= self._MAX_WRITE_RETRIES:
+                    msg = "cannot acquire stable file handle after multiple retries"
+                    raise FileError(msg) from None
+                self._commit_transaction_buffer(
+                    lines,
+                    start_state,
+                    written_keys,
+                    buffer_updates,
+                    start_mtime,
+                    start_size,
+                    _retries=_retries + 1,
+                )
 
     def _detect_conflicts(
         self,

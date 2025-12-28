@@ -67,8 +67,10 @@ def _validate_key_field_value(value: object, field: str) -> str | int:
     if isinstance(value, str):
         return value
 
-    msg = f"key field '{field}' has invalid type {type(value).__name__}"
-    raise InvalidKeyError(msg)
+    # Defensive fallback - unreachable with valid JSON input
+    type_name = type(value).__name__  # pragma: no cover
+    msg = f"key field '{field}' has invalid type {type_name}"  # pragma: no cover
+    raise InvalidKeyError(msg)  # pragma: no cover
 
 
 def validate_record(record: "JSONObject", key_specifier: KeySpecifier) -> None:

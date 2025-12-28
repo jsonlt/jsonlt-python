@@ -27,11 +27,11 @@ _LOCK_MAX_POLL_INTERVAL: Final[float] = 0.1  # 100ms max with backoff
 class _LockModule(Protocol):
     """Protocol for platform-specific lock module."""
 
-    def acquire(self, fd: int) -> bool:
+    def acquire(self, fd: int) -> bool:  # pragma: no cover
         """Try to acquire exclusive lock."""
         ...
 
-    def release(self, fd: int) -> None:
+    def release(self, fd: int) -> None:  # pragma: no cover
         """Release exclusive lock."""
         ...
 

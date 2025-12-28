@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from jsonlt._exceptions import ParseError
-from jsonlt._header import Header, is_header_line, parse_header
+from jsonlt._header import Header, is_header_line, parse_header, serialize_header
 
 if TYPE_CHECKING:
     from jsonlt._json import JSONObject
@@ -275,3 +275,41 @@ class TestHeaderEquality:
     )
     def test_header_equality(self, h1: Header, h2: Header, *, expected: bool) -> None:
         assert (h1 == h2) is expected
+
+
+class TestSerializeHeader:
+    def test_minimal_header(self) -> None:
+        """Header with only version."""
+        header = Header(version=1)
+        result = serialize_header(header)
+        assert result == '{"$jsonlt":{"version":1}}'
+
+    def test_header_with_string_key(self) -> None:
+        """Header with string key specifier."""
+        header = Header(version=1, key="id")
+        result = serialize_header(header)
+        assert '"key":"id"' in result
+
+    def test_header_with_tuple_key(self) -> None:
+        """Header with tuple key specifier (becomes array)."""
+        header = Header(version=1, key=("org", "id"))
+        result = serialize_header(header)
+        assert '"key":["org","id"]' in result
+
+    def test_header_with_schema_url(self) -> None:
+        """Header with $schema URL."""
+        header = Header(version=1, schema_url="https://example.com/schema.json")
+        result = serialize_header(header)
+        assert '"$schema":"https://example.com/schema.json"' in result
+
+    def test_header_with_inline_schema(self) -> None:
+        """Header with inline schema object."""
+        header = Header(version=1, schema={"type": "object"})
+        result = serialize_header(header)
+        assert '"schema":{"type":"object"}' in result
+
+    def test_header_with_meta(self) -> None:
+        """Header with meta object."""
+        header = Header(version=1, meta={"author": "test"})
+        result = serialize_header(header)
+        assert '"meta":{"author":"test"}' in result

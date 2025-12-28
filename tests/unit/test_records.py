@@ -232,6 +232,12 @@ class TestValidateTombstoneInvalid:
                 InvalidKeyError,
                 "key field 'id' value is null",
             ),
+            (
+                {"$deleted": {"nested": True}, "id": "alice"},
+                "id",
+                ParseError,
+                r"\$deleted must be true, got dict",
+            ),
         ],
         ids=[
             "missing_deleted_field",
@@ -241,6 +247,7 @@ class TestValidateTombstoneInvalid:
             "deleted_number",
             "missing_key_field",
             "invalid_key_value",
+            "deleted_dict_type",
         ],
     )
     def test_invalid_tombstones(

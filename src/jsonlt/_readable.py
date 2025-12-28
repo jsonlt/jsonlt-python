@@ -183,7 +183,7 @@ class ReadableMixin(ABC):
     def find(
         self,
         predicate: "Callable[[JSONObject], bool]",
-    ) -> "list[JSONObject]": ...
+    ) -> "list[JSONObject]": ...  # pragma: no cover
 
     @overload
     def find(
@@ -191,7 +191,7 @@ class ReadableMixin(ABC):
         predicate: "Callable[[JSONObject], bool]",
         *,
         limit: int,
-    ) -> "list[JSONObject]": ...
+    ) -> "list[JSONObject]": ...  # pragma: no cover
 
     def find(
         self,
