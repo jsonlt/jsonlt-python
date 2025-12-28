@@ -91,7 +91,8 @@ class TestTableConstruction:
         table = Table(table_path, key="id")
 
         assert "Table" in repr(table)
-        assert str(table_path) in repr(table)
+        # Check path is present (use name to avoid Windows path sep issues)
+        assert table_path.name in repr(table)
         assert "'id'" in repr(table)
 
 

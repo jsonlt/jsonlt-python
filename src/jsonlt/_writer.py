@@ -5,6 +5,7 @@ This module provides low-level file writing with durability guarantees.
 
 import contextlib
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -107,11 +108,14 @@ def atomic_replace(path: Path, lines: "Sequence[str]") -> None:
         temp_path = None  # Successfully moved, don't delete
 
         # fsync the directory to ensure the rename is durable
-        dir_fd = os.open(str(parent_dir), os.O_RDONLY)
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
+        # This is a POSIX-specific operation - Windows doesn't support
+        # opening directories and NTFS handles atomic renames differently
+        if sys.platform != "win32":
+            dir_fd = os.open(str(parent_dir), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
 
     except OSError as e:
         msg = f"cannot write file atomically: {e}"
