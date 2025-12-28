@@ -14,7 +14,7 @@ dependencies = ["typing-extensions>=4.15.0"]
 dev = [
   "basedpyright>=1.36.1",
   "codespell>=2.4.1",
-  "cosmic-ray>=8.4.3",
+  "cosmic-ray>=8.4.3; sys_platform != 'win32'",
   "dirty-equals>=0.11",
   "faker>=39.0.0",
   "hypothesis>=6.148.7",
@@ -24,7 +24,7 @@ dev = [
   "pytest-codspeed>=4.2.0",
   "pytest-cov>=7.0.0",
   "pytest-examples>=0.0.18",
-  "pytest-memray>=1.8.0",
+  "pytest-memray>=1.8.0; sys_platform != 'win32'",
   "pytest-mock>=3.15.1",
   "pytest-test-groups>=1.2.1",
   "rich>=14.2.0",
@@ -88,6 +88,8 @@ exclude_lines = [
   "if TYPE_CHECKING:",
   "@abstractmethod",
   "@abc.abstractmethod",
+  # Platform-specific exclusions
+  "class _WindowsLock:",
 ]
 precision = 2
 show_missing = true
