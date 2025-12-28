@@ -18,11 +18,11 @@ JSONLT is a data format for storing keyed records in append-only files using [JS
 ## Installation
 
 ```bash
-pip install jsonlt
+pip install jsonlt-python
 
 # Or
 
-uv add jsonlt
+uv add jsonlt-python
 ```
 
 ## Quick start
@@ -132,23 +132,23 @@ table.clear()
 
 The `Table` class is the primary interface for working with JSONLT files.
 
-| Method | Description |
-| ------ | ----------- |
-| `Table(path, key)` | Open or create a table at the given path |
-| `get(key)` | Get a record by key, returns `None` if not found |
-| `has(key)` | Check if a key exists |
-| `put(record)` | Insert or update a record |
-| `delete(key)` | Delete a record, returns whether it existed |
-| `all()` | Get all records in key order |
-| `keys()` | Get all keys in key order |
-| `items()` | Get all (key, record) pairs in key order |
-| `count()` | Get the number of records |
-| `find(predicate, limit=None)` | Find records matching a predicate |
-| `find_one(predicate)` | Find the first matching record |
-| `transaction()` | Start a new transaction |
-| `compact()` | Compact the table file |
-| `clear()` | Remove all records |
-| `reload()` | Force reload from disk |
+| Method                        | Description                                      |
+|-------------------------------|--------------------------------------------------|
+| `Table(path, key)`            | Open or create a table at the given path         |
+| `get(key)`                    | Get a record by key, returns `None` if not found |
+| `has(key)`                    | Check if a key exists                            |
+| `put(record)`                 | Insert or update a record                        |
+| `delete(key)`                 | Delete a record, returns whether it existed      |
+| `all()`                       | Get all records in key order                     |
+| `keys()`                      | Get all keys in key order                        |
+| `items()`                     | Get all (key, record) pairs in key order         |
+| `count()`                     | Get the number of records                        |
+| `find(predicate, limit=None)` | Find records matching a predicate                |
+| `find_one(predicate)`         | Find the first matching record                   |
+| `transaction()`               | Start a new transaction                          |
+| `compact()`                   | Compact the table file                           |
+| `clear()`                     | Remove all records                               |
+| `reload()`                    | Force reload from disk                           |
 
 The `Table` class also supports idiomatic Python operations:
 
@@ -160,37 +160,28 @@ The `Table` class also supports idiomatic Python operations:
 
 The `Transaction` class provides snapshot isolation and buffered writes.
 
-| Method | Description |
-| ------ | ----------- |
-| `get(key)` | Get a record from the transaction snapshot |
-| `has(key)` | Check if a key exists in the snapshot |
-| `put(record)` | Buffer a record for commit |
-| `delete(key)` | Buffer a deletion for commit |
-| `commit()` | Write buffered changes to disk |
-| `abort()` | Discard buffered changes |
+| Method        | Description                                |
+|---------------|--------------------------------------------|
+| `get(key)`    | Get a record from the transaction snapshot |
+| `has(key)`    | Check if a key exists in the snapshot      |
+| `put(record)` | Buffer a record for commit                 |
+| `delete(key)` | Buffer a deletion for commit               |
+| `commit()`    | Write buffered changes to disk             |
+| `abort()`     | Discard buffered changes                   |
 
 ### Exception hierarchy
 
 All exceptions inherit from `JSONLTError`:
 
-| Exception | Description |
-| --------- | ----------- |
-| `ParseError` | Invalid file format or content |
-| `InvalidKeyError` | Invalid or missing key |
-| `FileError` | File I/O error |
-| `LockError` | Cannot obtain file lock |
-| `LimitError` | Size limit exceeded |
-| `TransactionError` | Transaction state error |
-| `ConflictError` | Write-write conflict detected |
-
-### Type exports
-
-For type annotations, the package exports:
-
-- `Key` - A key value (`str`, `int`, or tuple of these)
-- `KeySpecifier` - Key field names (single or multiple)
-- `JSONObject` - A JSON object (`dict[str, Any]`)
-- `Header` - Table header data class
+| Exception          | Description                    |
+|--------------------|--------------------------------|
+| `ParseError`       | Invalid file format or content |
+| `InvalidKeyError`  | Invalid or missing key         |
+| `FileError`        | File I/O error                 |
+| `LockError`        | Cannot obtain file lock        |
+| `LimitError`       | Size limit exceeded            |
+| `TransactionError` | Transaction state error        |
+| `ConflictError`    | Write-write conflict detected  |
 
 ## Documentation
 
