@@ -24,7 +24,7 @@ dev = [
   "pytest-codspeed>=4.2.0",
   "pytest-cov>=7.0.0",
   "pytest-examples>=0.0.18",
-  "pytest-memray>=1.8.0",
+  "pytest-memray>=1.8.0; sys_platform != 'win32'",
   "pytest-mock>=3.15.1",
   "pytest-test-groups>=1.2.1",
   "rich>=14.2.0",
