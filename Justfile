@@ -3,8 +3,10 @@ set unstable
 set positional-arguments
 
 project := "jsonlt"
-package := "jsonlt"
+package := "jsonlt-python"
+module := "jsonlt"
 pnpm := "pnpm exec"
+test_pypi_index := "https://test.pypi.org/legacy/"
 
 # List available recipes
 default:
@@ -114,11 +116,11 @@ prek-all:
   prek run --all-files
 
 # Publish to TestPyPI (requires OIDC token in CI or UV_PUBLISH_TOKEN)
-publish-testpypi: build-release
-  uv publish --publish-url https://test.pypi.org/legacy/
+publish-testpypi:
+  uv publish --publish-url {{test_pypi_index}}
 
 # Publish to PyPI (requires OIDC token in CI or UV_PUBLISH_TOKEN)
-publish-pypi: build-release
+publish-pypi:
   uv publish
 
 # Run command
@@ -136,6 +138,13 @@ run-python *args:
 # Generate SBOM for current environment
 sbom output="sbom.cdx.json":
   uv run --isolated --group release cyclonedx-py environment --of json -o {{output}}
+
+# Set development version (appends .devN)
+[script]
+set-dev-version number:
+  base_version="$(uv version --package {{package}} | awk '{print $2}')"
+  version="${base_version}.dev{{number}}"
+  uv version --package {{package}} "${version}"
 
 # Run tests (excludes benchmarks and slow tests by default)
 test *args:
@@ -171,3 +180,28 @@ update-examples *args:
 # Sync Vale styles and dictionaries
 vale-sync:
   vale sync
+
+# Show the current version
+[script]
+version:
+  uv version --package {{package}} | awk '{print $2}'
+
+# Verify a PyPi release
+[script]
+verify-pypi version:
+  tmp_dir="/tmp/{{package}}-verify-pypi/venv"
+  rm -fr "${tmp_dir}"
+  mkdir -p "${tmp_dir}"
+  uv venv --directory "${tmp_dir}" --python 3.10 --no-project --no-cache
+  uv pip install --directory "${tmp_dir}" --no-cache --strict "{{package}}=={{version}}"
+  uv run --directory "${tmp_dir}" --no-project python -c "import {{module}}; print({{module}}.__version__)"
+
+# Verify a TestPyPi release
+[script]
+verify-testpypi version:
+  tmp_dir="/tmp/{{package}}-verify-testpypi/venv"
+  rm -fr "${tmp_dir}"
+  mkdir -p "${tmp_dir}"
+  uv venv --directory "${tmp_dir}" --python 3.10 --no-project --no-cache --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/"
+  uv pip install --directory "${tmp_dir}" --no-cache --strict --default-index "https://test.pypi.org/simple/" --extra-index-url "https://pypi.org/simple/" "{{package}}=={{version}}"
+  uv run --directory "${tmp_dir}" --no-project python -c "import {{module}}; print({{module}}.__version__)"
