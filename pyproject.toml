@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "jsonlt-python"
-version = "0.1.0a3"
+version = "0.1.0a4"
 description = "Reference implementation of the JSONLT (JSON Lines Table) specification for Python."
 readme = "README.md"
 license = "MIT"
