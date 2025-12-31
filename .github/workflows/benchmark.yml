@@ -29,12 +29,37 @@ permissions:
 
 jobs:
   benchmark:
-    name: "Benchmark"
+    name: "Benchmark (${{ matrix.shard }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     permissions:
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # CI tests only (not slow) for fast PR feedback
+          # Slow tests excluded - they take ~24s each vs ~7s for CI tests
+          - shard: "load-reload"
+            filter: "TestBenchLoad or TestBenchReload"
+            marker: "benchmark and not slow"
+          - shard: "get"
+            filter: "TestBenchGet"
+            marker: "benchmark and not slow"
+          - shard: "find"
+            filter: "TestBenchFind and not TestBenchFindOne"
+            marker: "benchmark and not slow"
+          - shard: "find-one-delete"
+            filter: "TestBenchFindOne or TestBenchDelete"
+          - shard: "write-compact"
+            filter: "TestBenchPut or TestBenchBatchWrite or TestBenchCompact"
+          - shard: "all-keys-items"
+            filter: "TestBenchAll or TestBenchKeys or TestBenchItems"
+            marker: "benchmark and not slow"
+          - shard: "count-has"
+            filter: "TestBenchCount or TestBenchHas"
+            marker: "benchmark and not slow"
 
     steps:
       - name: Checkout code
@@ -50,4 +75,4 @@ jobs:
         uses: CodSpeedHQ/action@346a2d8a8d9d38909abd0bc3d23f773110f076ad # v4.4.1
         with:
           mode: simulation
-          run: uv run pytest -m benchmark --codspeed
+          run: uv run pytest -m "${{ matrix.marker || 'benchmark' }}" -k "${{ matrix.filter }}" --codspeed

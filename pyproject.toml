@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "jsonlt-python"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Reference implementation of the JSONLT (JSON Lines Table) specification for Python."
 readme = "README.md"
 license = "MIT"
@@ -99,6 +99,7 @@ markers = [
   "conformance: mark a test as a conformance test.",
   "example: mark a test as a documentation example test.",
   "fuzz: mark a test as a fuzz test.",
+  "limit_memory: mark a test with memory limit (pytest-memray marker).",
   "slow: mark a test as slow (excluded by default, run with -m slow).",
   "integration: mark a test as an integration test.",
   "property: mark a test as a property test.",
