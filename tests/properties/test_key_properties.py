@@ -1,20 +1,11 @@
+"""Property-based tests for key comparison operations."""
+
 from hypothesis import given, strategies as st
 
 from jsonlt._constants import MAX_INTEGER_KEY, MAX_TUPLE_ELEMENTS, MIN_INTEGER_KEY
 from jsonlt._keys import compare_keys
 
-key_element_strategy = st.one_of(
-    st.text(),
-    st.integers(min_value=MIN_INTEGER_KEY, max_value=MAX_INTEGER_KEY),
-)
-
-key_strategy = st.one_of(
-    st.text(),
-    st.integers(min_value=MIN_INTEGER_KEY, max_value=MAX_INTEGER_KEY),
-    st.tuples(*[key_element_strategy] * 1),
-    st.tuples(*[key_element_strategy] * 2),
-    st.lists(key_element_strategy, min_size=1, max_size=MAX_TUPLE_ELEMENTS).map(tuple),
-)
+from .strategies import key_element_strategy, key_strategy
 
 
 class TestTotalOrderProperties:
