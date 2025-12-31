@@ -591,6 +591,17 @@ class TestTableDelete:
         with pytest.raises(InvalidKeyError, match="key arity mismatch"):
             _ = table.delete(("acme", 1, "extra"))  # 3 elements, specifier has 2
 
+    def test_delete_key_length_limit_raises(self, tmp_path: "Path") -> None:
+        """Delete with key exceeding 1024 bytes raises LimitError."""
+        table_path = tmp_path / "test.jsonlt"
+        table = Table(table_path, key="id")
+
+        # 1030 characters + quotes = 1032 bytes > 1024
+        long_key = "x" * 1030
+
+        with pytest.raises(LimitError, match="key length"):
+            _ = table.delete(long_key)
+
 
 class TestTableClear:
     def test_clear_removes_all_records(self, tmp_path: "Path") -> None:

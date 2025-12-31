@@ -9,11 +9,11 @@ import copy
 from typing import TYPE_CHECKING, ClassVar
 from typing_extensions import override
 
-from ._constants import MAX_KEY_LENGTH, MAX_RECORD_SIZE
+from ._constants import MAX_RECORD_SIZE
 from ._encoding import validate_no_surrogates
 from ._exceptions import LimitError, TransactionError
 from ._json import serialize_json, utf8_byte_length
-from ._keys import Key, KeySpecifier, key_length, validate_key_arity
+from ._keys import Key, KeySpecifier, validate_key_arity, validate_key_length
 from ._readable import ReadableMixin
 from ._records import build_tombstone, extract_key, validate_record
 
@@ -52,6 +52,7 @@ class Transaction(ReadableMixin):
     """
 
     __slots__: ClassVar[tuple[str, ...]] = (
+        "_buffer_serialized",
         "_buffer_updates",
         "_cached_sorted_keys",
         "_file_mtime",
@@ -69,6 +70,7 @@ class Transaction(ReadableMixin):
     _snapshot: "dict[Key, JSONObject]"
     _start_state: "dict[Key, JSONObject]"
     _buffer_updates: "dict[Key, JSONObject | None]"
+    _buffer_serialized: "dict[Key, str]"
     _written_keys: set[Key]
     _finalized: bool
     _file_mtime: float
@@ -99,6 +101,7 @@ class Transaction(ReadableMixin):
         # reloaded state. Safe because _start_state values are never modified.
         self._start_state = state.copy()
         self._buffer_updates = {}
+        self._buffer_serialized = {}
         self._written_keys = set()
         self._finalized = False
         # Cache file stats for skip-reload optimization at commit time
@@ -154,17 +157,17 @@ class Transaction(ReadableMixin):
 
         # Extract and validate key
         key = extract_key(record, self._key_specifier)
-        key_len = key_length(key)
-        if key_len > MAX_KEY_LENGTH:
-            msg = f"key length {key_len} bytes exceeds maximum {MAX_KEY_LENGTH}"
-            raise LimitError(msg)
+        validate_key_length(key)
 
-        # Serialize record to check size limit (we don't store the serialized form)
+        # Serialize record to check size limit and cache for commit
         serialized = serialize_json(record)
         record_bytes = utf8_byte_length(serialized)
         if record_bytes > MAX_RECORD_SIZE:
             msg = f"record size {record_bytes} bytes exceeds maximum {MAX_RECORD_SIZE}"
             raise LimitError(msg)
+
+        # Cache serialized form before deep copy (record hasn't been modified)
+        self._buffer_serialized[key] = serialized
 
         # Buffer the update (only keep latest value per key)
         record_copy = copy.deepcopy(record)
@@ -196,11 +199,15 @@ class Transaction(ReadableMixin):
         # Validate key arity matches specifier
         validate_key_arity(key, self._key_specifier)
 
+        # Validate key length
+        validate_key_length(key)
+
         # Check if key exists in snapshot
         existed = key in self._snapshot
 
         # Buffer the delete (only keep latest state per key)
         self._buffer_updates[key] = None
+        _ = self._buffer_serialized.pop(key, None)
         self._written_keys.add(key)
 
         # Update snapshot
@@ -239,8 +246,8 @@ class Transaction(ReadableMixin):
                     tombstone = build_tombstone(key, self._key_specifier)
                     lines.append(serialize_json(tombstone))
                 else:
-                    # Record (put)
-                    lines.append(serialize_json(value))
+                    # Record (put) - use cached serialization from put()
+                    lines.append(self._buffer_serialized[key])
 
             # Commit via table (handles locking and conflict detection)
             # Transaction is a friend class of Table - protected access is intentional
@@ -249,7 +256,6 @@ class Transaction(ReadableMixin):
                 self._start_state,
                 self._written_keys,
                 self._buffer_updates,
-                self._file_mtime,
                 self._file_size,
             )
         finally:
