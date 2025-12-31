@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "jsonlt-python"
-abstract: "A Python library for using a JSON Lines (JSONL) file as a lightweight database."
+abstract: "The Python reference implementation of the JSONLT (JSON Lines Table) specification, a data format for storing keyed records in append-only files."
 authors:
   - family-names: Burns
     given-names: Tony
@@ -10,8 +10,8 @@ authors:
 repository-code: "https://github.com/jsonlt/jsonlt-python"
 url: "https://jsonlt.org"
 license: MIT
-version: "0.0.0"
-date-released: "2025-12-21"
+version: "0.1.0"
+date-released: "2025-12-31"
 keywords:
   - jsonl
   - json-lines

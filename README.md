@@ -23,11 +23,11 @@ The Python reference implementation of [JSONLT (JSON Lines Table)](https://jsonl
 ## Installation
 
 ```bash
-pip install --pre jsonlt-python
+pip install jsonlt-python
 
 # Or
 
-uv add --pre jsonlt-python
+uv add jsonlt-python
 ```
 
 Requires Python 3.10 or later.
