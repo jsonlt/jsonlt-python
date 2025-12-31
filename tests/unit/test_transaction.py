@@ -276,6 +276,20 @@ class TestTransactionWriteOperations:
         ):
             tx.put({"id": "test", "data": large_data})
 
+    def test_delete_key_length_limit_raises(self, tmp_path: "Path") -> None:
+        """Delete with key exceeding 1024 bytes raises LimitError."""
+        table_path = tmp_path / "test.jsonlt"
+        table = Table(table_path, key="id")
+
+        # 1030 characters + quotes = 1032 bytes > 1024
+        long_key = "x" * 1030
+
+        with (
+            table.transaction() as tx,
+            pytest.raises(LimitError, match="key length"),
+        ):
+            _ = tx.delete(long_key)
+
 
 class TestTransactionCommit:
     def test_commit_persists_writes(self, tmp_path: "Path") -> None:

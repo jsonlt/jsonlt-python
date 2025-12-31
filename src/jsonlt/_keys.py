@@ -8,8 +8,13 @@ import json
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, TypeAlias
 
-from ._constants import MAX_INTEGER_KEY, MAX_TUPLE_ELEMENTS, MIN_INTEGER_KEY
-from ._exceptions import InvalidKeyError
+from ._constants import (
+    MAX_INTEGER_KEY,
+    MAX_KEY_LENGTH,
+    MAX_TUPLE_ELEMENTS,
+    MIN_INTEGER_KEY,
+)
+from ._exceptions import InvalidKeyError, LimitError
 from ._json import utf8_byte_length
 
 if TYPE_CHECKING:
@@ -343,3 +348,18 @@ def key_from_json(value: object) -> Key:
         return tuple(elements)
     msg = f"Cannot convert {type(value).__name__} to key"
     raise TypeError(msg)
+
+
+def validate_key_length(key: Key) -> None:
+    """Validate that key length does not exceed the maximum.
+
+    Args:
+        key: The key to validate.
+
+    Raises:
+        LimitError: If key length exceeds MAX_KEY_LENGTH (1024 bytes).
+    """
+    key_len = key_length(key)
+    if key_len > MAX_KEY_LENGTH:
+        msg = f"key length {key_len} bytes exceeds maximum {MAX_KEY_LENGTH}"
+        raise LimitError(msg)

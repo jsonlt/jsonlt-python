@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 from typing_extensions import override
 
-from ._constants import MAX_KEY_LENGTH, MAX_RECORD_SIZE
+from ._constants import MAX_RECORD_SIZE
 from ._encoding import validate_no_surrogates
 from ._exceptions import (
     ConflictError,
@@ -25,10 +25,10 @@ from ._json import serialize_json, utf8_byte_length
 from ._keys import (
     Key,
     KeySpecifier,
-    key_length,
     key_specifiers_match,
     normalize_key_specifier,
     validate_key_arity,
+    validate_key_length,
 )
 from ._readable import ReadableMixin
 from ._reader import parse_table_content, read_table_file
@@ -431,10 +431,7 @@ class Table(ReadableMixin):
 
         # Extract and validate key
         key = extract_key(record, key_specifier)
-        key_len = key_length(key)
-        if key_len > MAX_KEY_LENGTH:
-            msg = f"key length {key_len} bytes exceeds maximum {MAX_KEY_LENGTH}"
-            raise LimitError(msg)
+        validate_key_length(key)
 
         # Serialize record
         serialized = serialize_json(record)
@@ -527,6 +524,9 @@ class Table(ReadableMixin):
 
         # Validate key arity matches specifier
         validate_key_arity(key, key_specifier)
+
+        # Validate key length
+        validate_key_length(key)
 
         # Build tombstone
         tombstone = build_tombstone(key, key_specifier)
@@ -666,13 +666,12 @@ class Table(ReadableMixin):
         """
         self._active_transaction = None
 
-    def _commit_transaction_buffer(  # noqa: PLR0913
+    def _commit_transaction_buffer(
         self,
         lines: list[str],
         start_state: "dict[Key, JSONObject]",
         written_keys: set[Key],
         buffer_updates: "dict[Key, JSONObject | None]",
-        start_mtime: float,
         start_size: int,
         *,
         _retries: int = 0,
@@ -687,7 +686,6 @@ class Table(ReadableMixin):
             start_state: Snapshot of table state when transaction started.
             written_keys: Keys that were modified in the transaction.
             buffer_updates: Map of key -> record (or None for delete).
-            start_mtime: File mtime when transaction started.
             start_size: File size when transaction started.
             _retries: Internal retry counter (do not pass externally).
 
@@ -743,7 +741,6 @@ class Table(ReadableMixin):
                     start_state,
                     written_keys,
                     buffer_updates,
-                    start_mtime,
                     start_size,
                     _retries=_retries + 1,
                 )
