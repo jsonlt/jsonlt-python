@@ -39,47 +39,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Fast tests (~7s/test) - can have more tests per shard
+          # CI tests only (not slow) for fast PR feedback
+          # Slow tests excluded - they take ~24s each vs ~7s for CI tests
+          - shard: "load-reload"
+            filter: "TestBenchLoad or TestBenchReload"
+            marker: "benchmark and not slow"
           - shard: "get"
             filter: "TestBenchGet"
-          - shard: "count"
-            filter: "TestBenchCount"
-          - shard: "has"
-            filter: "TestBenchHas"
+            marker: "benchmark and not slow"
+          - shard: "find"
+            filter: "TestBenchFind and not TestBenchFindOne"
+            marker: "benchmark and not slow"
           - shard: "find-one-delete"
             filter: "TestBenchFindOne or TestBenchDelete"
-          # Moderate tests (~9s/test)
           - shard: "write-compact"
             filter: "TestBenchPut or TestBenchBatchWrite or TestBenchCompact"
-          # I/O-heavy tests (~12s/test)
-          - shard: "load"
-            filter: "TestBenchLoad"
-          - shard: "reload"
-            filter: "TestBenchReload"
-          - shard: "keys-ci"
-            filter: "TestBenchKeys"
+          - shard: "all-keys-items"
+            filter: "TestBenchAll or TestBenchKeys or TestBenchItems"
             marker: "benchmark and not slow"
-          - shard: "keys-slow"
-            filter: "TestBenchKeys"
-            marker: "benchmark and slow"
-          # Expensive tests (~15s/test) - split by slow marker
-          - shard: "all-ci"
-            filter: "TestBenchAll"
+          - shard: "count-has"
+            filter: "TestBenchCount or TestBenchHas"
             marker: "benchmark and not slow"
-          - shard: "all-slow"
-            filter: "TestBenchAll"
-            marker: "benchmark and slow"
-          - shard: "items-ci"
-            filter: "TestBenchItems"
-            marker: "benchmark and not slow"
-          - shard: "items-slow"
-            filter: "TestBenchItems"
-            marker: "benchmark and slow"
-          # Find tests (~10s/test)
-          - shard: "find-high"
-            filter: "TestBenchFind and not TestBenchFindOne and test_find_high_selectivity"
-          - shard: "find-other"
-            filter: "TestBenchFind and not TestBenchFindOne and not test_find_high_selectivity"
 
     steps:
       - name: Checkout code
