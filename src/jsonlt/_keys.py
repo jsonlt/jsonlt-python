@@ -6,7 +6,7 @@ operations for working with keys per the JSONLT specification.
 
 import json
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 from ._constants import (
     MAX_INTEGER_KEY,
@@ -16,30 +16,14 @@ from ._constants import (
 )
 from ._exceptions import InvalidKeyError, LimitError
 from ._json import utf8_byte_length
+from ._types import Key, KeyElement, KeySpecifier
 
 if TYPE_CHECKING:
     from typing import TypeGuard
     from typing_extensions import TypeIs
 
-KeyElement: TypeAlias = "str | int"
-"""A key element is a string or integer that may appear in a tuple key."""
-
-Key: TypeAlias = "str | int | tuple[str | int, ...]"
-"""A key identifies a record within a table.
-
-A key is one of:
-- A string
-- An integer in the range [-(2^53)+1, (2^53)-1]
-- A tuple of key elements (non-empty, max 16 elements)
-"""
-
-KeySpecifier: TypeAlias = "str | tuple[str, ...]"
-"""A key specifier defines how to extract a key from a record.
-
-A key specifier is one of:
-- A string naming a single field
-- A tuple of strings naming multiple fields (for compound keys)
-"""
+# Re-export type aliases for backwards compatibility
+__all__ = ["Key", "KeyElement", "KeySpecifier"]
 
 
 def is_valid_key_element(value: object) -> "TypeIs[str | int]":
