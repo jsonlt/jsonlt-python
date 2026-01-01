@@ -5,10 +5,11 @@ import pytest
 
 from jsonlt import FileError, InvalidKeyError, LimitError, Table
 
-from tests.fakes.fake_filesystem import FakeFileSystem
-
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
+
+    from tests.fakes.fake_filesystem import FakeFileSystem
 
 
 class TestTableConstruction:
@@ -115,10 +116,8 @@ class TestTableGet:
 
         assert table.get("bob") is None
 
-    def test_get_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-
-        table = Table(table_path, key="id")
+    def test_get_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         assert table.get("alice") is None
 
@@ -156,19 +155,15 @@ class TestTableHas:
 
         assert table.has("bob") is False
 
-    def test_has_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-
-        table = Table(table_path, key="id")
+    def test_has_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         assert table.has("alice") is False
 
 
 class TestTableAll:
-    def test_all_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-
-        table = Table(table_path, key="id")
+    def test_all_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         assert table.all() == []
 
@@ -219,10 +214,8 @@ class TestTableAll:
 
 
 class TestTableKeys:
-    def test_keys_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-
-        table = Table(table_path, key="id")
+    def test_keys_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         assert table.keys() == []
 
@@ -236,10 +229,8 @@ class TestTableKeys:
 
 
 class TestTableCount:
-    def test_count_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-
-        table = Table(table_path, key="id")
+    def test_count_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         assert table.count() == 0
 
@@ -445,9 +436,10 @@ class TestTablePut:
         content = table_path.read_text()
         assert content.count("\n") == 2
 
-    def test_put_updates_existing_record(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_updates_existing_record(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         table.put({"id": "alice", "role": "user"})
         table.put({"id": "alice", "role": "admin"})
@@ -455,9 +447,8 @@ class TestTablePut:
         assert table.count() == 1
         assert table.get("alice") == {"id": "alice", "role": "admin"}
 
-    def test_put_with_integer_key(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_with_integer_key(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         table.put({"id": 1, "name": "First"})
 
@@ -478,30 +469,30 @@ class TestTablePut:
         with pytest.raises(InvalidKeyError, match="key specifier is required"):
             table.put({"id": "alice"})
 
-    def test_put_missing_key_field_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_missing_key_field_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with pytest.raises(InvalidKeyError, match="missing required key field"):
             table.put({"name": "Alice"})
 
-    def test_put_dollar_field_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_dollar_field_raises(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         with pytest.raises(InvalidKeyError, match="reserved field name"):
             table.put({"id": "alice", "$custom": "value"})
 
-    def test_put_invalid_key_type_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_invalid_key_type_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with pytest.raises(InvalidKeyError, match="boolean"):
             table.put({"id": True, "name": "Alice"})
 
-    def test_put_key_length_limit(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_key_length_limit(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         # Key with > 1024 bytes when serialized (string with quotes)
         long_key = "x" * 1030
@@ -531,9 +522,10 @@ class TestTableDelete:
         assert table.get("alice") is None
         assert table.count() == 0
 
-    def test_delete_nonexistent_record(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_delete_nonexistent_record(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         result = table.delete("bob")
 
@@ -591,9 +583,10 @@ class TestTableDelete:
         with pytest.raises(InvalidKeyError, match="key arity mismatch"):
             _ = table.delete(("acme", 1, "extra"))  # 3 elements, specifier has 2
 
-    def test_delete_key_length_limit_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_delete_key_length_limit_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         # 1030 characters + quotes = 1032 bytes > 1024
         long_key = "x" * 1030
@@ -631,9 +624,8 @@ class TestTableClear:
         assert len(lines) == 1
         assert "$jsonlt" in lines[0]
 
-    def test_clear_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_clear_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         table.clear()  # Should not raise
 
@@ -683,9 +675,8 @@ class TestTableClear:
 
 
 class TestTableCompact:
-    def test_compact_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_compact_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         table.compact()  # Should not raise
 
@@ -849,9 +840,10 @@ class TestTableCompact:
 
 
 class TestTableWriteReload:
-    def test_put_updates_state_immediately(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id", auto_reload=False)
+    def test_put_updates_state_immediately(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table(auto_reload=False)
 
         table.put({"id": "alice", "name": "Alice"})
 
@@ -987,9 +979,8 @@ class TestTableMagicMethods:
         assert records[1] == {"id": "b"}
         assert records[2] == {"id": "c"}
 
-    def test_iter_on_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_iter_on_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         records = list(table)
 
@@ -1044,9 +1035,8 @@ class TestTableItems:
 
         assert [k for k, _ in items] == ["a", "b", "c"]
 
-    def test_items_empty_table(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_items_empty_table(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         items = table.items()
 
@@ -1107,8 +1097,9 @@ class TestTableReload:
 
 
 class TestFileSystemEdgeCases:
-    def test_load_empty_file_with_header_but_no_ops(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_load_empty_file_with_header_but_no_ops(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
         _ = table_path.write_bytes(b'{"$jsonlt":{"version":1,"key":"id"}}\n')
@@ -1120,8 +1111,9 @@ class TestFileSystemEdgeCases:
         assert table.count() == 0
         assert table.keys() == []
 
-    def test_load_from_content_empty(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_load_from_content_empty(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
         _ = table_path.write_bytes(b'{"id":"alice"}\n')
@@ -1135,8 +1127,9 @@ class TestFileSystemEdgeCases:
         table._load_from_content(b"")  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
         assert table._state == {}  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
-    def test_resolve_key_specifier_empty_no_key(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_resolve_key_specifier_empty_no_key(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
         # File does not exist - table should be empty
 
@@ -1145,8 +1138,9 @@ class TestFileSystemEdgeCases:
         assert table.key_specifier is None
         assert table.count() == 0
 
-    def test_reload_if_changed_stat_fails(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_reload_if_changed_stat_fails(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
         _ = table_path.write_bytes(b'{"id":"alice"}\n')
@@ -1165,8 +1159,9 @@ class TestFileSystemEdgeCases:
             # Testing internal method
             table._reload_if_changed(0.0, 0)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
-    def test_write_file_not_found_then_exists(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_write_file_not_found_then_exists(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
 
         table = Table(table_path, key="id", _fs=fake_fs)
@@ -1176,8 +1171,9 @@ class TestFileSystemEdgeCases:
 
         assert table.get("alice") == {"id": "alice"}
 
-    def test_try_update_stats_ignores_file_error(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_try_update_stats_ignores_file_error(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
         _ = table_path.write_bytes(b'{"id":"alice"}\n')
@@ -1199,8 +1195,9 @@ class TestFileSystemEdgeCases:
         assert table._file_mtime == old_mtime  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
         assert table._file_size == old_size  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
-    def test_auto_reload_disabled_uses_cache(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_auto_reload_disabled_uses_cache(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
         _ = table_path.write_bytes(b'{"id":"alice"}\n')
@@ -1216,8 +1213,9 @@ class TestFileSystemEdgeCases:
         # Should still be able to read from cache since auto_reload is disabled
         assert table.get("alice") == {"id": "alice"}
 
-    def test_clear_on_file_with_header(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_clear_on_file_with_header(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
         _ = table_path.write_bytes(
@@ -1243,8 +1241,9 @@ class TestFileSystemEdgeCases:
         assert b'"$jsonlt"' in content
         assert b'"alice"' not in content
 
-    def test_compact_recreates_deleted_file(self, tmp_path: "Path") -> None:
-        fake_fs = FakeFileSystem()
+    def test_compact_recreates_deleted_file(
+        self, tmp_path: "Path", fake_fs: "FakeFileSystem"
+    ) -> None:
         table_path = tmp_path / "test.jsonlt"
 
         # Create table and add record (uses fake_fs for write)

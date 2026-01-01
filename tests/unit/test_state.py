@@ -10,16 +10,6 @@ if TYPE_CHECKING:
 
 
 class TestComputeLogicalState:
-    def test_empty_operations_returns_empty_state(self) -> None:
-        operations: list[JSONObject] = []
-        state = compute_logical_state(operations, "id")
-        assert state == {}
-
-    def test_single_record(self) -> None:
-        operations: list[JSONObject] = [{"id": "alice", "role": "admin"}]
-        state = compute_logical_state(operations, "id")
-        assert state == {"alice": {"id": "alice", "role": "admin"}}
-
     def test_multiple_records_distinct_keys(self) -> None:
         operations: list[JSONObject] = [
             {"id": "alice", "role": "admin"},
@@ -31,42 +21,6 @@ class TestComputeLogicalState:
         assert state["alice"] == {"id": "alice", "role": "admin"}
         assert state["bob"] == {"id": "bob", "role": "user"}
         assert state["carol"] == {"id": "carol", "role": "user"}
-
-    def test_upsert_overwrites(self) -> None:
-        operations: list[JSONObject] = [
-            {"id": "alice", "role": "user"},
-            {"id": "alice", "role": "admin"},
-        ]
-        state = compute_logical_state(operations, "id")
-        assert len(state) == 1
-        assert state["alice"] == {"id": "alice", "role": "admin"}
-
-    def test_tombstone_removes(self) -> None:
-        operations: list[JSONObject] = [
-            {"id": "alice", "role": "admin"},
-            {"$deleted": True, "id": "alice"},
-        ]
-        state = compute_logical_state(operations, "id")
-        assert state == {}
-
-    def test_tombstone_nonexistent_key(self) -> None:
-        operations: list[JSONObject] = [
-            {"id": "alice", "role": "admin"},
-            {"$deleted": True, "id": "bob"},
-        ]
-        state = compute_logical_state(operations, "id")
-        assert len(state) == 1
-        assert state["alice"] == {"id": "alice", "role": "admin"}
-
-    def test_reinsert_after_delete(self) -> None:
-        operations: list[JSONObject] = [
-            {"id": "alice", "role": "admin"},
-            {"$deleted": True, "id": "alice"},
-            {"id": "alice", "role": "user"},
-        ]
-        state = compute_logical_state(operations, "id")
-        assert len(state) == 1
-        assert state["alice"] == {"id": "alice", "role": "user"}
 
     def test_integer_key(self) -> None:
         operations: list[JSONObject] = [

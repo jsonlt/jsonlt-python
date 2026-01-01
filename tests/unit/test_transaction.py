@@ -13,15 +13,17 @@ from jsonlt import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from os import stat_result
 
     from jsonlt._json import JSONObject
 
 
 class TestTransactionCreation:
-    def test_transaction_returns_transaction_object(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_transaction_returns_transaction_object(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         tx = table.transaction()
 
@@ -35,9 +37,10 @@ class TestTransactionCreation:
         with pytest.raises(InvalidKeyError, match="key specifier is required"):
             _ = table.transaction()
 
-    def test_nested_transaction_rejected(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_nested_transaction_rejected(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         tx = table.transaction()
         try:
@@ -56,9 +59,10 @@ class TestTransactionSnapshotIsolation:
         with table.transaction() as tx:
             assert tx.get("alice") == {"id": "alice", "v": 1}
 
-    def test_transaction_sees_own_writes(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_transaction_sees_own_writes(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             tx.put({"id": "alice", "v": 1})
@@ -78,16 +82,18 @@ class TestTransactionSnapshotIsolation:
 
 
 class TestTransactionReadOperations:
-    def test_get_returns_none_for_nonexistent_key(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_get_returns_none_for_nonexistent_key(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             assert tx.get("nonexistent") is None
 
-    def test_has_returns_false_for_nonexistent_key(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_has_returns_false_for_nonexistent_key(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             assert tx.has("nonexistent") is False
@@ -165,9 +171,8 @@ class TestTransactionReadOperations:
 
 
 class TestTransactionWriteOperations:
-    def test_put_updates_snapshot(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_updates_snapshot(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             tx.put({"id": "alice", "v": 1})
@@ -183,9 +188,10 @@ class TestTransactionWriteOperations:
             tx.put({"id": "alice", "v": 2})
             assert tx.get("alice") == {"id": "alice", "v": 2}
 
-    def test_put_isolates_from_caller_mutations(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_isolates_from_caller_mutations(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             record: JSONObject = {"id": "alice", "items": [1, 2, 3]}
@@ -211,17 +217,17 @@ class TestTransactionWriteOperations:
             assert tx.has("alice") is False
             assert tx.count() == 0
 
-    def test_delete_nonexistent_returns_false(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_delete_nonexistent_returns_false(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             result = tx.delete("nonexistent")
             assert result is False
 
-    def test_put_validates_record(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_validates_record(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         with (
             table.transaction() as tx,
@@ -229,9 +235,10 @@ class TestTransactionWriteOperations:
         ):
             tx.put({"name": "alice"})
 
-    def test_put_rejects_dollar_fields(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_rejects_dollar_fields(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with (
             table.transaction() as tx,
@@ -249,9 +256,10 @@ class TestTransactionWriteOperations:
         ):
             _ = tx.delete("alice")
 
-    def test_put_key_length_limit_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_key_length_limit_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         long_key = "x" * 1030  # > 1024 bytes when serialized
 
@@ -261,9 +269,10 @@ class TestTransactionWriteOperations:
         ):
             tx.put({"id": long_key})
 
-    def test_put_record_size_limit_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_put_record_size_limit_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         large_data = "x" * (1024 * 1024 + 1000)
 
@@ -273,9 +282,10 @@ class TestTransactionWriteOperations:
         ):
             tx.put({"id": "test", "data": large_data})
 
-    def test_delete_key_length_limit_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_delete_key_length_limit_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         # 1030 characters + quotes = 1032 bytes > 1024
         long_key = "x" * 1030
@@ -288,9 +298,8 @@ class TestTransactionWriteOperations:
 
 
 class TestTransactionCommit:
-    def test_commit_persists_writes(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_commit_persists_writes(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             tx.put({"id": "alice", "v": 1})
@@ -330,9 +339,10 @@ class TestTransactionCommit:
         # Should not raise, table unchanged
         assert table.get("alice") == {"id": "alice", "v": 1}
 
-    def test_multiple_writes_committed_together(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_multiple_writes_committed_together(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             tx.put({"id": "alice", "v": 1})
@@ -401,9 +411,10 @@ class TestTransactionAbort:
 
 
 class TestTransactionContextManager:
-    def test_context_manager_commits_on_success(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_context_manager_commits_on_success(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             tx.put({"id": "alice", "v": 1})
@@ -432,10 +443,9 @@ class TestTransactionContextManager:
         assert table.get("alice") == {"id": "alice", "v": 1}
 
     def test_context_manager_does_not_suppress_exceptions(
-        self, tmp_path: "Path"
+        self, make_table: "Callable[..., Table]"
     ) -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+        table = make_table()
 
         class PropagateError(Exception):
             pass
@@ -451,9 +461,10 @@ class TestTransactionContextManager:
 
 
 class TestTransactionAfterCommitOrAbort:
-    def test_operations_fail_after_commit(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_operations_fail_after_commit(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         tx = table.transaction()
         tx.put({"id": "alice", "v": 1})
@@ -462,9 +473,10 @@ class TestTransactionAfterCommitOrAbort:
         with pytest.raises(TransactionError, match="already been committed"):
             tx.put({"id": "bob", "v": 2})
 
-    def test_operations_fail_after_abort(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_operations_fail_after_abort(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         tx = table.transaction()
         tx.put({"id": "alice", "v": 1})
@@ -473,9 +485,8 @@ class TestTransactionAfterCommitOrAbort:
         with pytest.raises(TransactionError, match="already been committed"):
             _ = tx.get("alice")
 
-    def test_double_commit_fails(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_double_commit_fails(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         tx = table.transaction()
         tx.commit()
@@ -483,9 +494,8 @@ class TestTransactionAfterCommitOrAbort:
         with pytest.raises(TransactionError, match="already been committed"):
             tx.commit()
 
-    def test_double_abort_fails(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_double_abort_fails(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         tx = table.transaction()
         tx.abort()
@@ -493,9 +503,10 @@ class TestTransactionAfterCommitOrAbort:
         with pytest.raises(TransactionError, match="already been committed"):
             tx.abort()
 
-    def test_can_start_new_transaction_after_commit(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_can_start_new_transaction_after_commit(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx1:
             tx1.put({"id": "alice", "v": 1})
@@ -506,9 +517,10 @@ class TestTransactionAfterCommitOrAbort:
 
         assert table.count() == 2
 
-    def test_exit_when_already_finalized_returns_false(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_exit_when_already_finalized_returns_false(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         tx = table.transaction()
         tx.commit()
@@ -674,9 +686,10 @@ class TestTransactionBufferDeduplication:
         assert '"id":"alice"' in lines[0]
         assert '"v":3' in lines[0]
 
-    def test_multiple_puts_same_key_final_value_correct(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_multiple_puts_same_key_final_value_correct(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             tx.put({"id": "alice", "v": 1})
@@ -821,40 +834,37 @@ class TestTransactionMagicMethods:
             assert records[1] == {"id": "b"}
             assert records[2] == {"id": "c"}
 
-    def test_iter_on_empty_transaction(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_iter_on_empty_transaction(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             records = list(tx)
             assert records == []
 
-    def test_repr_active_transaction(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_repr_active_transaction(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         tx = table.transaction()
         try:
             result = repr(tx)
             assert "Transaction(" in result
-            # Use name to avoid Windows path separator issues
-            assert table_path.name in result
             assert "key='id'" in result
             assert "active" in result
         finally:
             tx.abort()
 
-    def test_repr_finalized_transaction(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_repr_finalized_transaction(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         tx = table.transaction()
         tx.commit()
 
         result = repr(tx)
         assert "Transaction(" in result
-        # Use name to avoid Windows path separator issues
-        assert table_path.name in result
         assert "key='id'" in result
         assert "finalized" in result
 
@@ -894,9 +904,8 @@ class TestTransactionItems:
             items = tx.items()
             assert [k for k, _ in items] == ["a", "b", "c"]
 
-    def test_items_empty_transaction(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_items_empty_transaction(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
 
         with table.transaction() as tx:
             items = tx.items()
@@ -914,9 +923,10 @@ class TestTransactionItems:
             assert len(items) == 2
             assert ("bob", {"id": "bob", "v": 2}) in items
 
-    def test_items_on_finalized_transaction_raises(self, tmp_path: "Path") -> None:
-        table_path = tmp_path / "test.jsonlt"
-        table = Table(table_path, key="id")
+    def test_items_on_finalized_transaction_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
 
         tx = table.transaction()
         tx.commit()
