@@ -184,7 +184,6 @@ class TestTransactionWriteOperations:
             assert tx.get("alice") == {"id": "alice", "v": 2}
 
     def test_put_isolates_from_caller_mutations(self, tmp_path: "Path") -> None:
-        """Put creates a deep copy, so caller mutations don't affect transaction."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -251,7 +250,6 @@ class TestTransactionWriteOperations:
             _ = tx.delete("alice")
 
     def test_put_key_length_limit_raises(self, tmp_path: "Path") -> None:
-        """Put with key exceeding 1024 bytes raises LimitError."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -264,7 +262,6 @@ class TestTransactionWriteOperations:
             tx.put({"id": long_key})
 
     def test_put_record_size_limit_raises(self, tmp_path: "Path") -> None:
-        """Put with record exceeding 1 MiB raises LimitError."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -277,7 +274,6 @@ class TestTransactionWriteOperations:
             tx.put({"id": "test", "data": large_data})
 
     def test_delete_key_length_limit_raises(self, tmp_path: "Path") -> None:
-        """Delete with key exceeding 1024 bytes raises LimitError."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -349,11 +345,6 @@ class TestTransactionCommit:
     def test_commit_succeeds_when_stat_fails_after_write(
         self, tmp_path: "Path", monkeypatch: "pytest.MonkeyPatch"
     ) -> None:
-        """Verify commit succeeds even if stat fails after write.
-
-        The implementation catches OSError when updating file stats after
-        a successful write, ensuring durability is preserved.
-        """
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -516,7 +507,6 @@ class TestTransactionAfterCommitOrAbort:
         assert table.count() == 2
 
     def test_exit_when_already_finalized_returns_false(self, tmp_path: "Path") -> None:
-        """__exit__ returns False immediately if transaction already finalized."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -669,7 +659,6 @@ class TestTransactionBufferDeduplication:
     def test_multiple_puts_same_key_produces_single_line(
         self, tmp_path: "Path"
     ) -> None:
-        """Putting the same key multiple times should produce only one line per key."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -686,7 +675,6 @@ class TestTransactionBufferDeduplication:
         assert '"v":3' in lines[0]
 
     def test_multiple_puts_same_key_final_value_correct(self, tmp_path: "Path") -> None:
-        """The final value should be the last put for each key."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -700,7 +688,6 @@ class TestTransactionBufferDeduplication:
     def test_put_then_delete_same_key_produces_single_tombstone(
         self, tmp_path: "Path"
     ) -> None:
-        """Put then delete on same key should produce only one tombstone."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -720,7 +707,6 @@ class TestTransactionBufferDeduplication:
     def test_delete_then_put_same_key_produces_single_record(
         self, tmp_path: "Path"
     ) -> None:
-        """Delete then put on same key should produce only one record."""
         table_path = tmp_path / "test.jsonlt"
         _ = table_path.write_text('{"id": "alice", "v": 1}\n')
         table = Table(table_path, key="id")
@@ -739,7 +725,6 @@ class TestTransactionBufferDeduplication:
         assert table.get("alice") == {"id": "alice", "v": 99}
 
     def test_multiple_keys_produces_one_line_per_key(self, tmp_path: "Path") -> None:
-        """Multiple keys with multiple updates each should produce one line per key."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -941,8 +926,6 @@ class TestTransactionItems:
 
 
 class TestTransactionEmptyTupleKeyRejection:
-    """Tests for empty tuple key rejection in transactions."""
-
     def test_get_empty_tuple_raises(self, tmp_path: "Path") -> None:
         table_path = tmp_path / "test.jsonlt"
         _ = table_path.write_text('{"id": "alice"}\n')

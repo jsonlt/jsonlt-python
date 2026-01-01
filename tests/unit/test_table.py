@@ -592,7 +592,6 @@ class TestTableDelete:
             _ = table.delete(("acme", 1, "extra"))  # 3 elements, specifier has 2
 
     def test_delete_key_length_limit_raises(self, tmp_path: "Path") -> None:
-        """Delete with key exceeding 1024 bytes raises LimitError."""
         table_path = tmp_path / "test.jsonlt"
         table = Table(table_path, key="id")
 
@@ -654,7 +653,6 @@ class TestTableClear:
         assert table_path.exists()
 
     def test_clear_reloads_header_inside_lock(self, tmp_path: "Path") -> None:
-        """Clear reloads state inside lock to get current header."""
         table_path = tmp_path / "test.jsonlt"
         content = (
             '{"$jsonlt": {"version": 1, "key": "id", "meta": {"tag": "initial"}}}\n'
@@ -999,8 +997,6 @@ class TestTableMagicMethods:
 
 
 class TestTableEmptyTupleKeyRejection:
-    """Tests for empty tuple key rejection."""
-
     def test_get_empty_tuple_raises(self, tmp_path: "Path") -> None:
         table_path = tmp_path / "test.jsonlt"
         _ = table_path.write_text('{"id": "alice"}\n')
@@ -1111,18 +1107,7 @@ class TestTableReload:
 
 
 class TestFileSystemEdgeCases:
-    """Tests for edge cases using FakeFileSystem.
-
-    Note: The FakeFileSystem is only used for stat, open_locked, atomic_replace,
-    and ensure_parent_dir operations. The initial _load() still reads from the
-    real filesystem. Tests must create real files on disk when testing loading.
-
-    Some tests access protected members to verify internal state changes; this
-    is intentional for testing implementation details.
-    """
-
     def test_load_empty_file_with_header_but_no_ops(self, tmp_path: "Path") -> None:
-        """File with header but no operations has empty state."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
@@ -1136,7 +1121,6 @@ class TestFileSystemEdgeCases:
         assert table.keys() == []
 
     def test_load_from_content_empty(self, tmp_path: "Path") -> None:
-        """_load_from_content with empty bytes clears state."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
@@ -1152,7 +1136,6 @@ class TestFileSystemEdgeCases:
         assert table._state == {}  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
     def test_resolve_key_specifier_empty_no_key(self, tmp_path: "Path") -> None:
-        """Empty file with no key specifier returns None."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
         # File does not exist - table should be empty
@@ -1163,7 +1146,6 @@ class TestFileSystemEdgeCases:
         assert table.count() == 0
 
     def test_reload_if_changed_stat_fails(self, tmp_path: "Path") -> None:
-        """_reload_if_changed raises when stat fails during reload."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
@@ -1184,7 +1166,6 @@ class TestFileSystemEdgeCases:
             table._reload_if_changed(0.0, 0)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
     def test_write_file_not_found_then_exists(self, tmp_path: "Path") -> None:
-        """Test that put creates file in fake filesystem."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
 
@@ -1196,7 +1177,6 @@ class TestFileSystemEdgeCases:
         assert table.get("alice") == {"id": "alice"}
 
     def test_try_update_stats_ignores_file_error(self, tmp_path: "Path") -> None:
-        """_try_update_stats silently ignores FileError and preserves stats."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
@@ -1220,7 +1200,6 @@ class TestFileSystemEdgeCases:
         assert table._file_size == old_size  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
 
     def test_auto_reload_disabled_uses_cache(self, tmp_path: "Path") -> None:
-        """Table with auto_reload=False uses cached state."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
@@ -1238,7 +1217,6 @@ class TestFileSystemEdgeCases:
         assert table.get("alice") == {"id": "alice"}
 
     def test_clear_on_file_with_header(self, tmp_path: "Path") -> None:
-        """clear() uses atomic_replace when file has header."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
         # Create real file on disk for _load()
@@ -1266,7 +1244,6 @@ class TestFileSystemEdgeCases:
         assert b'"alice"' not in content
 
     def test_compact_recreates_deleted_file(self, tmp_path: "Path") -> None:
-        """compact() recreates file if there's in-memory state."""
         fake_fs = FakeFileSystem()
         table_path = tmp_path / "test.jsonlt"
 

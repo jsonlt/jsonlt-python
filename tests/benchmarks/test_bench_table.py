@@ -1,10 +1,3 @@
-"""Benchmarks for Table operations.
-
-This module contains performance benchmarks for all Table operations,
-organized by operation type and parametrized by record size, key type,
-and scale.
-"""
-
 from typing import TYPE_CHECKING, Literal
 
 import pytest
@@ -86,8 +79,6 @@ DELETE_ITERATION_BUFFER: int = 10000
 
 
 class TestBenchLoad:
-    """Benchmarks for Table constructor loading pre-existing files."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_PARAMS)
     def test_load(
         self,
@@ -109,8 +100,6 @@ class TestBenchLoad:
 
 
 class TestBenchReload:
-    """Benchmarks for table.reload() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_PARAMS)
     def test_reload(
         self,
@@ -120,7 +109,6 @@ class TestBenchReload:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Force reload table from disk."""
         table = create_test_table(tmp_path, key_type, record_size, scale)
 
         def reload_table() -> None:
@@ -130,8 +118,6 @@ class TestBenchReload:
 
 
 class TestBenchGet:
-    """Benchmarks for table.get() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_PARAMS)
     def test_get_existing_key(
         self,
@@ -173,8 +159,6 @@ class TestBenchGet:
 
 
 class TestBenchAll:
-    """Benchmarks for table.all() returning sorted records."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_WITH_EDGE_PARAMS)
     def test_all(
         self,
@@ -195,8 +179,6 @@ class TestBenchAll:
 
 
 class TestBenchFind:
-    """Benchmarks for table.find() with various selectivity."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_PARAMS)
     def test_find_high_selectivity(
         self,
@@ -248,7 +230,6 @@ class TestBenchFind:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Find with ~1% selectivity (matches few records)."""
         table = create_test_table(tmp_path, key_type, record_size, scale)
 
         # Very high selectivity: match ~1% of records (count > 9900)
@@ -270,7 +251,6 @@ class TestBenchFind:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Find with 100% selectivity (matches all records)."""
         table = create_test_table(tmp_path, key_type, record_size, scale)
 
         def predicate_all(_r: "JSONObject") -> bool:
@@ -303,8 +283,6 @@ class TestBenchFind:
 
 
 class TestBenchFindOne:
-    """Benchmarks for table.find_one() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), CI_PARAMS)
     def test_find_one_match_early(
         self,
@@ -314,7 +292,6 @@ class TestBenchFindOne:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Find first record matching predicate (best case)."""
         table = create_test_table(tmp_path, key_type, record_size, scale)
 
         def predicate_any(_r: "JSONObject") -> bool:
@@ -334,7 +311,6 @@ class TestBenchFindOne:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Find record with predicate matching late in dataset."""
         table = create_test_table(tmp_path, key_type, record_size, scale)
 
         # Match only high count values (~1% of records)
@@ -356,7 +332,6 @@ class TestBenchFindOne:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Find with predicate that matches nothing (full scan)."""
         table = create_test_table(tmp_path, key_type, record_size, scale)
 
         def predicate_never(_r: "JSONObject") -> bool:
@@ -369,8 +344,6 @@ class TestBenchFindOne:
 
 
 class TestBenchPut:
-    """Benchmarks for table.put() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), CI_PARAMS)
     def test_put_new_record(
         self,
@@ -417,8 +390,6 @@ class TestBenchPut:
 
 
 class TestBenchBatchWrite:
-    """Benchmarks for batched write operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), CI_PARAMS)
     def test_batch_put_10(
         self,
@@ -473,17 +444,6 @@ class TestBenchBatchWrite:
 
 
 class TestBenchCompact:
-    """Benchmarks for table.compact() operations.
-
-    These benchmarks measure pure compact() performance by pre-populating
-    tables with history or tombstones during setup.
-
-    Note: The benchmark fixture runs compact() multiple times. After the first
-    iteration, the table is already compacted, so subsequent iterations measure
-    the fast path (compacting a clean table). The reported time is amortized
-    across all iterations, with the first iteration doing the meaningful work.
-    """
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), CI_PARAMS)
     def test_compact_with_history(
         self,
@@ -493,7 +453,6 @@ class TestBenchCompact:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Compact a table with update history (superseded records)."""
         history_count = max(scale // 10, 1)
         table = create_table_with_history(
             tmp_path, key_type, record_size, scale, history_count
@@ -513,7 +472,6 @@ class TestBenchCompact:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Compact a table with tombstones (deleted records)."""
         tombstone_count = max(scale // 10, 1)
         table = create_table_with_tombstones(
             tmp_path, key_type, record_size, scale, tombstone_count
@@ -526,8 +484,6 @@ class TestBenchCompact:
 
 
 class TestBenchKeys:
-    """Benchmarks for table.keys() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_WITH_EDGE_PARAMS)
     def test_keys(
         self,
@@ -548,8 +504,6 @@ class TestBenchKeys:
 
 
 class TestBenchItems:
-    """Benchmarks for table.items() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_WITH_EDGE_PARAMS)
     def test_items(
         self,
@@ -559,7 +513,6 @@ class TestBenchItems:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Get all key-value pairs."""
         table = create_test_table(tmp_path, key_type, record_size, scale)
 
         def get_items() -> None:
@@ -571,8 +524,6 @@ class TestBenchItems:
 
 
 class TestBenchCount:
-    """Benchmarks for table.count() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_WITH_EDGE_PARAMS)
     def test_count(
         self,
@@ -591,8 +542,6 @@ class TestBenchCount:
 
 
 class TestBenchHas:
-    """Benchmarks for table.has() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), ALL_WITH_EDGE_PARAMS)
     def test_has_existing(
         self,
@@ -633,8 +582,6 @@ class TestBenchHas:
 
 
 class TestBenchDelete:
-    """Benchmarks for table.delete() operations."""
-
     @pytest.mark.parametrize(("record_size", "key_type", "scale"), CI_PARAMS)
     def test_delete_existing(
         self,
@@ -644,7 +591,6 @@ class TestBenchDelete:
         key_type: KeyType,
         scale: int,
     ) -> None:
-        """Delete existing records using unique keys per iteration."""
         # Create table with extra keys for benchmark iterations
         table = create_extended_test_table(
             tmp_path, key_type, record_size, scale, DELETE_ITERATION_BUFFER

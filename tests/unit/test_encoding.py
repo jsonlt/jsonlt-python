@@ -235,14 +235,12 @@ class TestHasUnpairedSurrogates:
         assert has_unpaired_surrogates(text) is True
 
     def test_valid_surrogate_pair_returns_false(self) -> None:
-        """Valid surrogate pair (high followed by low) should return False."""
         high = chr(0xD83D)  # High surrogate
         low = chr(0xDE00)  # Low surrogate
         text = high + low
         assert has_unpaired_surrogates(text) is False
 
     def test_valid_surrogate_pair_in_middle(self) -> None:
-        """Valid surrogate pair embedded in text."""
         high = chr(0xD83D)
         low = chr(0xDE00)
         text = "hello" + high + low + "world"
@@ -251,19 +249,16 @@ class TestHasUnpairedSurrogates:
 
 class TestValidateNoSurrogates:
     def test_rejects_surrogate_in_dict_key(self) -> None:
-        """Unpaired surrogate in dict field name raises ParseError."""
         bad_key = "field" + chr(0xD800)  # Lone high surrogate in key
         value = cast("JSONValue", {bad_key: "value"})
         with pytest.raises(ParseError, match="field name"):
             validate_no_surrogates(value)
 
     def test_accepts_valid_nested_dict(self) -> None:
-        """Nested dict without surrogates passes."""
         value = cast("JSONValue", {"outer": {"inner": "value"}})
         validate_no_surrogates(value)  # Should not raise
 
     def test_rejects_surrogate_in_string_value(self) -> None:
-        """Unpaired surrogate in string value raises ParseError."""
         bad_value = "value" + chr(0xD800)  # Lone high surrogate in value
         value = cast("JSONValue", {"key": bad_value})
         with pytest.raises(ParseError, match="unpaired Unicode surrogates"):

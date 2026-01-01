@@ -149,13 +149,9 @@ class Transaction(ReadableMixin):
         """
         self._require_active()
 
-        # Check for unpaired surrogates in all strings
         validate_no_surrogates(record)
-
-        # Validate record structure (missing fields, invalid key types, $ fields)
         validate_record(record, self._key_specifier)
 
-        # Extract and validate key
         key = extract_key(record, self._key_specifier)
         validate_key_length(key)
 
@@ -169,12 +165,10 @@ class Transaction(ReadableMixin):
         # Cache serialized form before deep copy (record hasn't been modified)
         self._buffer_serialized[key] = serialized
 
-        # Buffer the update (only keep latest value per key)
         record_copy = copy.deepcopy(record)
         self._buffer_updates[key] = record_copy
         self._written_keys.add(key)
 
-        # Update snapshot
         self._snapshot[key] = record_copy
         self._cached_sorted_keys = None
 
@@ -196,21 +190,15 @@ class Transaction(ReadableMixin):
         """
         self._require_active()
 
-        # Validate key arity matches specifier
         validate_key_arity(key, self._key_specifier)
-
-        # Validate key length
         validate_key_length(key)
 
-        # Check if key exists in snapshot
         existed = key in self._snapshot
 
-        # Buffer the delete (only keep latest state per key)
         self._buffer_updates[key] = None
         _ = self._buffer_serialized.pop(key, None)
         self._written_keys.add(key)
 
-        # Update snapshot
         if existed:
             del self._snapshot[key]
         self._cached_sorted_keys = None

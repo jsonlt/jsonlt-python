@@ -1,5 +1,3 @@
-"""Property-based tests for record validation."""
-
 from typing import TYPE_CHECKING
 
 from hypothesis import given, strategies as st
@@ -20,8 +18,6 @@ if TYPE_CHECKING:
 
 
 class TestValidRecordProperties:
-    """Valid records pass validation without exception."""
-
     @given(
         scalar_key_specifier_strategy,
         key_element_strategy,
@@ -30,7 +26,6 @@ class TestValidRecordProperties:
     def test_valid_scalar_key_record(
         self, key_field: str, key_value: str | int, extra_fields: "JSONObject"
     ) -> None:
-        """Records with valid scalar keys pass validation."""
         # Build record with key field and extra data
         record: JSONObject = {
             key_field: key_value,
@@ -42,7 +37,6 @@ class TestValidRecordProperties:
     def test_valid_compound_key_record(
         self, key_specifier: tuple[str, ...], data: st.DataObject
     ) -> None:
-        """Records with valid compound keys pass validation."""
         # Generate a key value for each field in the specifier
         record: JSONObject = {}
         for field in key_specifier:
@@ -51,13 +45,10 @@ class TestValidRecordProperties:
 
 
 class TestExtractKeyProperties:
-    """Key extraction invariants."""
-
     @given(scalar_key_specifier_strategy, key_element_strategy)
     def test_extracted_scalar_key_matches_field(
         self, key_field: str, key_value: str | int
     ) -> None:
-        """Extracted key equals the key field value."""
         record: JSONObject = {key_field: key_value}
         extracted = extract_key(record, key_field)
         assert extracted == key_value
@@ -66,7 +57,6 @@ class TestExtractKeyProperties:
     def test_extracted_compound_key_matches_fields(
         self, key_specifier: tuple[str, ...], data: st.DataObject
     ) -> None:
-        """Extracted compound key is tuple of field values."""
         record: JSONObject = {}
         expected_elements: list[str | int] = []
         for field in key_specifier:
@@ -79,13 +69,10 @@ class TestExtractKeyProperties:
 
 
 class TestTombstoneProperties:
-    """Tombstone detection and construction."""
-
     @given(key_specifier_strategy, st.data())
     def test_tombstone_detected(
         self, key_specifier: str | tuple[str, ...], data: st.DataObject
     ) -> None:
-        """is_tombstone returns True for tombstones."""
         # Build a valid key
         if isinstance(key_specifier, str):
             key: str | int | tuple[str | int, ...] = data.draw(key_element_strategy)
@@ -99,7 +86,6 @@ class TestTombstoneProperties:
     def test_build_tombstone_roundtrip(
         self, key_specifier: str | tuple[str, ...], data: st.DataObject
     ) -> None:
-        """extract_key(build_tombstone(key, specifier), specifier) == key."""
         # Build a valid key
         if isinstance(key_specifier, str):
             key: str | int | tuple[str | int, ...] = data.draw(key_element_strategy)

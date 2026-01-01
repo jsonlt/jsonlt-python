@@ -1,5 +1,3 @@
-"""Property-based tests for key comparison operations."""
-
 from hypothesis import given, strategies as st
 
 from jsonlt._constants import MAX_INTEGER_KEY, MAX_TUPLE_ELEMENTS, MIN_INTEGER_KEY

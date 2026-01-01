@@ -47,7 +47,6 @@ class TestParseTableContent:
         assert operations[0] == {"id": 1}
 
     def test_bom_only_returns_empty(self) -> None:
-        """File containing only BOM returns empty result."""
         bom = b"\xef\xbb\xbf"
         header, operations = parse_table_content(bom)
         assert header is None

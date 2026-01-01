@@ -1,9 +1,3 @@
-"""Memory profiling benchmarks for JSONLT.
-
-This module contains memory usage benchmarks using pytest-memray to ensure
-memory consumption stays within expected bounds.
-"""
-
 import sys
 from typing import TYPE_CHECKING
 
@@ -26,8 +20,6 @@ pytestmark = pytest.mark.skipif(
 
 
 class TestMemoryLoad:
-    """Memory benchmarks for loading tables."""
-
     @pytest.mark.limit_memory("10 MB")
     def test_load_1k_small_records(self, tmp_path: "Path") -> None:
         records = generate_records("string", "small", 1000)
@@ -88,8 +80,6 @@ class TestMemoryLoad:
 
 
 class TestMemoryLoadKeyTypes:
-    """Memory benchmarks for loading with different key types."""
-
     @pytest.mark.limit_memory("10 MB")
     def test_load_1k_integer_keys(self, tmp_path: "Path") -> None:
         records = generate_records("integer", "small", 1000)
@@ -130,8 +120,6 @@ class TestMemoryLoadKeyTypes:
 
 
 class TestMemoryRead:
-    """Memory benchmarks for read operations."""
-
     @pytest.mark.limit_memory("15 MB")
     def test_all_1k_records(self, tmp_path: "Path") -> None:
         records = generate_records("string", "small", 1000)
@@ -175,8 +163,6 @@ class TestMemoryRead:
 
 
 class TestMemoryWrite:
-    """Memory benchmarks for write operations."""
-
     @pytest.mark.limit_memory("15 MB")
     def test_put_to_1k_table(self, tmp_path: "Path") -> None:
         records = generate_records("string", "small", 1000)

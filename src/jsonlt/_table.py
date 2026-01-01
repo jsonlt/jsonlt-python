@@ -160,21 +160,16 @@ class Table(ReadableMixin):
             InvalidKeyError: If the key specifier is invalid or mismatches
                 the header, or if the file has operations but no key specifier.
         """
-        # Check if file exists - if not, treat as empty table
         if not self._path.exists():
             self._load_empty_table(caller_key)
             return
 
-        # Read and parse the file
         header, operations = read_table_file(
             self._path, max_file_size=self._max_file_size
         )
         self._header = header
-
-        # Track file stats for auto-reload
         self._update_file_stats()
 
-        # Resolve which key specifier to use
         resolved_key = self._resolve_key_specifier(caller_key, header, operations)
         if resolved_key is None:
             # Empty file with no key specifier - OK for now
@@ -185,7 +180,6 @@ class Table(ReadableMixin):
 
         self._key_specifier = resolved_key
 
-        # Compute logical state if we have operations
         if operations:
             self._state = compute_logical_state(operations, self._key_specifier)
         else:
@@ -205,12 +199,10 @@ class Table(ReadableMixin):
             ParseError: If the content contains invalid data.
         """
         if not content:
-            # Empty content - nothing to load
             self._state = {}
             self._cached_sorted_keys = None
             return
 
-        # Parse the content
         header, operations = parse_table_content(content)
         self._header = header
 
@@ -223,7 +215,6 @@ class Table(ReadableMixin):
 
         self._key_specifier = resolved_key
 
-        # Compute logical state if we have operations
         if operations:
             self._state = compute_logical_state(operations, self._key_specifier)
         else:
@@ -395,8 +386,6 @@ class Table(ReadableMixin):
         self._load()
         self._cached_sorted_keys = None
 
-    # --- Write Operations ---
-
     def _require_key_specifier(self) -> KeySpecifier:
         """Return key specifier or raise InvalidKeyError if not set."""
         if self._key_specifier is None:
@@ -525,14 +514,11 @@ class Table(ReadableMixin):
         # Validate key arity matches specifier
         validate_key_arity(key, key_specifier)
 
-        # Validate key length
         validate_key_length(key)
 
-        # Build tombstone
         tombstone = build_tombstone(key, key_specifier)
         serialized = serialize_json(tombstone)
 
-        # Write under lock - returns whether key existed (checked after reload)
         return self._write_with_lock(serialized, key, None)
 
     def clear(self) -> None:

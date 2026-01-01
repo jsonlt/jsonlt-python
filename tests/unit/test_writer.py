@@ -36,7 +36,6 @@ class TestAppendLine:
         assert path.read_text() == '{"id":"existing"}\n{"id":"new"}\n'
 
     def test_creates_file_if_not_exists(self, tmp_path: "Path") -> None:
-        """Creates file if it doesn't exist."""
         path = tmp_path / "test.jsonlt"
 
         append_line(path, '{"id":"first"}')
@@ -84,7 +83,6 @@ class TestAppendLines:
         assert path.read_text() == '{"id":"a"}\n{"id":"b"}\n{"id":"c"}\n'
 
     def test_empty_lines_is_noop(self, tmp_path: "Path") -> None:
-        """Empty list does nothing (early return)."""
         path = tmp_path / "test.jsonlt"
         _ = path.write_text("existing\n")
 

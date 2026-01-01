@@ -48,7 +48,6 @@ def compute_logical_state(
     state: dict[Key, JSONObject] = {}
 
     for obj in operations:
-        # Extract the key from the operation
         key = extract_key(obj, key_specifier)
 
         # Determine operation type and apply

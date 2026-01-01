@@ -405,16 +405,13 @@ class TestKeyFromJson:
             _ = key_from_json(value)
 
     def test_invalid_list_element_float_raises(self) -> None:
-        """List with float element raises TypeError."""
         with pytest.raises(TypeError, match=r"Cannot convert.*key element"):
             _ = key_from_json(["valid", 3.14])
 
     def test_invalid_list_with_none_element_raises(self) -> None:
-        """List with None element raises TypeError."""
         with pytest.raises(TypeError, match=r"Cannot convert.*key element"):
             _ = key_from_json(["valid", None])
 
     def test_invalid_list_with_bool_element_raises(self) -> None:
-        """List with bool element raises TypeError."""
         with pytest.raises(TypeError, match=r"Cannot convert.*key element"):
             _ = key_from_json(["valid", True])

@@ -179,7 +179,6 @@ class TestNestingDepthEnforcement:
     def test_recursion_error_during_depth_check(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """RecursionError during depth check converts to LimitError."""
         from jsonlt import _json  # noqa: PLC0415  # pyright: ignore[reportPrivateUsage]
 
         def raise_recursion(_value: object) -> int:
