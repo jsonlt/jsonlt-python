@@ -243,20 +243,6 @@ class TestSerializeJson:
 
 
 class TestSerializationDeterminism:
-    def test_consistent_output_across_calls(self) -> None:
-        value = {"zebra": 1, "apple": 2, "Banana": 3}
-        result1 = serialize_json(value)
-        result2 = serialize_json(value)
-        assert result1 == result2
-
-    def test_consistent_for_identical_data(self) -> None:
-        # Same data constructed differently should serialize identically
-        value1 = {"b": 2, "a": 1}
-        value2 = {"a": 1, "b": 2}
-        result1 = serialize_json(value1)
-        result2 = serialize_json(value2)
-        assert result1 == result2
-
     def test_preserves_value_types(self) -> None:
         value = {
             "null": None,

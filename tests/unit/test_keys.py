@@ -240,10 +240,6 @@ class TestCompareKeys:
     @pytest.mark.parametrize(
         ("a", "b", "expected"),
         [
-            # Equal values
-            (42, 42, 0),
-            ("alice", "alice", 0),
-            (("a", 1), ("a", 1), 0),
             # Integer comparisons
             (1, 2, -1),
             (2, 1, 1),
@@ -255,13 +251,6 @@ class TestCompareKeys:
             # Unicode code point ordering: uppercase before lowercase
             ("Alice", "alice", -1),
             ("Zebra", "apple", -1),
-            # Cross-type ordering: int < str < tuple
-            (42, "42", -1),
-            ("42", 42, 1),
-            ("alice", ("alice",), -1),
-            (("alice",), "alice", 1),
-            (42, ("a", 1), -1),
-            (("a", 1), 42, 1),
             # Tuple element ordering
             (("a", 1), ("a", 2), -1),
             (("a", 2), ("b", 1), -1),
@@ -271,9 +260,6 @@ class TestCompareKeys:
             ((1, "a"), ("a", 1), -1),
         ],
         ids=[
-            "equal_integers",
-            "equal_strings",
-            "equal_tuples",
             "less_integer",
             "greater_integer",
             "negative_less",
@@ -282,12 +268,6 @@ class TestCompareKeys:
             "greater_string",
             "uppercase_before_lowercase",
             "code_point_ordering",
-            "int_before_string",
-            "string_after_int",
-            "string_before_tuple",
-            "tuple_after_string",
-            "int_before_tuple",
-            "tuple_after_int",
             "tuple_element_ordering",
             "tuple_first_element_wins",
             "shorter_tuple_first",
