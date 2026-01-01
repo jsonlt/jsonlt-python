@@ -9,20 +9,17 @@ JSONLT-specific requirements:
 
 import json
 from json import JSONDecodeError
-from typing import TYPE_CHECKING, TypeAlias, cast
+from typing import TYPE_CHECKING, cast
 
 from ._constants import MIN_NESTING_DEPTH
 from ._exceptions import LimitError, ParseError
+from ._types import JSONArray, JSONObject, JSONPrimitive, JSONValue
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-# JSON type definitions per RFC 8259
-# Using string annotations for forward references to avoid runtime | issues
-JSONPrimitive: TypeAlias = "str | int | float | bool | None"
-JSONArray: TypeAlias = "list[JSONValue]"
-JSONObject: TypeAlias = "dict[str, JSONValue]"
-JSONValue: TypeAlias = "JSONPrimitive | JSONArray | JSONObject"
+# Re-export type aliases for backwards compatibility
+__all__ = ["JSONArray", "JSONObject", "JSONPrimitive", "JSONValue"]
 
 
 def json_nesting_depth(value: object) -> int:

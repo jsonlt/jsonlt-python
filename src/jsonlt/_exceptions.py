@@ -4,14 +4,9 @@ This module defines the exception types used throughout the JSONLT library,
 following the specification's error categories.
 """
 
-# pyright: reportImportCycles=false
-
-from typing import TYPE_CHECKING
 from typing_extensions import override
 
-if TYPE_CHECKING:
-    from ._json import JSONObject
-    from ._keys import Key
+from ._types import JSONObject, Key
 
 
 class JSONLTError(Exception):

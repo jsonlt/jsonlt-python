@@ -208,6 +208,9 @@ ignore-variadic-names = true
   "S101",    # assert statements in tests
   "PLR2004", # magic values in assertions in tests
 ]
+"src/jsonlt/_exceptions.py" = [
+  "TC001",  # direct imports from _types.py to break circular import cycle
+]
 
 [tool.uv.build-backend]
 module-name = "jsonlt"
