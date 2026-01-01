@@ -66,9 +66,9 @@ The underlying file after these operations:
 
 ## When to use JSONLT
 
-JSONLT works well for configuration, metadata, and small-to-medium datasets where you want human-readable files that play nicely with Git. It's a good fit when you need keyed record storage but don't want the overhead of a database, and when you want to see exactly what changed in a pull request.
+JSONLT works well for configuration, metadata, and small-to-medium datasets where you want human-readable files that play nicely with Git. It's a good fit when you need keyed record storage but don't want the overhead of a database, and when you want to see exactly what changed in a pull request. The append-only design supports safe concurrent access from multiple processes.
 
-JSONLT is not a database. For large datasets, high write throughput, query operations, or concurrent multi-process access, consider SQLite or a full-featured database.
+JSONLT is not a database. For large datasets, high write throughput, or complex queries, consider SQLite or a proper database.
 
 ## Compound keys
 
