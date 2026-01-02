@@ -60,6 +60,19 @@ class TestFromRecords:
         assert table.count() == 2
         assert table.get(("acme", 1)) == {"org": "acme", "id": 1, "name": "alice"}
 
+    def test_duplicate_keys_last_wins(self, tmp_path: "Path") -> None:
+        records = [
+            {"id": "alice", "role": "admin"},
+            {"id": "alice", "role": "user"},  # Duplicate key, different value
+        ]
+        table = Table.from_records(
+            tmp_path / "test.jsonlt",
+            records,
+            key="id",
+        )
+        assert table.count() == 1
+        assert table.get("alice") == {"id": "alice", "role": "user"}
+
     def test_file_has_header(self, tmp_path: "Path") -> None:
         table = Table.from_records(
             tmp_path / "test.jsonlt",
@@ -295,6 +308,13 @@ class TestFromFile:
 
         with pytest.raises(LimitError, match="file size"):
             _ = Table.from_file(path, max_file_size=10)  # Very small limit
+
+    def test_empty_file_with_key(self, tmp_path: "Path") -> None:
+        path = tmp_path / "test.jsonlt"
+        _ = path.write_bytes(b"")  # 0-byte file
+
+        table = Table.from_file(path, key="id")
+        assert table.count() == 0
 
 
 class TestFactoryIntegration:
