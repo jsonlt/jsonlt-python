@@ -7,6 +7,8 @@ and this project adheres to [PEP 440](https://peps.python.org/pep-0440/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-02
+
 ### Added
 
 - `Table.from_records()` and `Table.from_file()` factory methods for convenient table initialization
