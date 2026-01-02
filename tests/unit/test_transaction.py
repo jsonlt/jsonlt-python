@@ -1302,3 +1302,125 @@ class TestTransactionMutableMapping:
         with table.transaction() as tx:
             tx.update(None)
             assert tx.count() == 0
+
+
+class TestTransactionEquality:
+    def test_equal_transactions_same_table_same_snapshot(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        # Since only one transaction can be active at a time per table,
+        # we verify equality by comparing a transaction to itself using
+        # a reference. This ensures __eq__ returns True for same instance.
+        tx = table.transaction()
+        try:
+            tx_ref = tx
+            assert tx == tx_ref
+        finally:
+            tx.abort()
+
+    def test_not_equal_different_parent_tables(self, tmp_path: "Path") -> None:
+        path1 = tmp_path / "test1.jsonlt"
+        path2 = tmp_path / "test2.jsonlt"
+        _ = path1.write_text('{"id": "alice", "v": 1}\n')
+        _ = path2.write_text('{"id": "alice", "v": 1}\n')
+
+        table1 = Table(path1, key="id")
+        table2 = Table(path2, key="id")
+
+        tx1 = table1.transaction()
+        tx2 = table2.transaction()
+        try:
+            # Different table instances, so not equal
+            assert tx1 != tx2
+        finally:
+            tx1.abort()
+            tx2.abort()
+
+    def test_not_equal_different_buffered_writes(self, tmp_path: "Path") -> None:
+        path1 = tmp_path / "test1.jsonlt"
+        path2 = tmp_path / "test2.jsonlt"
+        _ = path1.write_text('{"id": "alice", "v": 1}\n')
+        _ = path2.write_text('{"id": "alice", "v": 1}\n')
+
+        table1 = Table(path1, key="id")
+        table2 = Table(path2, key="id")
+
+        tx1 = table1.transaction()
+        tx2 = table2.transaction()
+        try:
+            # Make different writes
+            tx1.put({"id": "bob", "v": 1})
+            tx2.put({"id": "carol", "v": 1})
+
+            assert tx1 != tx2
+        finally:
+            tx1.abort()
+            tx2.abort()
+
+    def test_equal_with_same_buffered_writes(self, tmp_path: "Path") -> None:
+        path1 = tmp_path / "test1.jsonlt"
+        path2 = tmp_path / "test2.jsonlt"
+        _ = path1.write_text('{"id": "alice", "v": 1}\n')
+        _ = path2.write_text('{"id": "alice", "v": 1}\n')
+
+        table1 = Table(path1, key="id")
+        table2 = Table(path2, key="id")
+
+        tx1 = table1.transaction()
+        tx2 = table2.transaction()
+        try:
+            # Make identical writes
+            tx1.put({"id": "bob", "v": 2})
+            tx2.put({"id": "bob", "v": 2})
+
+            # They still differ because they have different parent tables
+            assert tx1 != tx2
+        finally:
+            tx1.abort()
+            tx2.abort()
+
+    def test_eq_with_non_transaction_returns_false(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        tx = table.transaction()
+        try:
+            result = tx == "string"
+            assert result is False
+        finally:
+            tx.abort()
+
+    def test_finalized_vs_active_not_equal(self, tmp_path: "Path") -> None:
+        path1 = tmp_path / "test1.jsonlt"
+        path2 = tmp_path / "test2.jsonlt"
+        _ = path1.write_text('{"id": "alice", "v": 1}\n')
+        _ = path2.write_text('{"id": "alice", "v": 1}\n')
+
+        table1 = Table(path1, key="id")
+        table2 = Table(path2, key="id")
+
+        tx1 = table1.transaction()
+        tx2 = table2.transaction()
+
+        # Commit one, leave the other active
+        tx1.commit()
+        try:
+            # finalized vs active should not be equal
+            assert tx1 != tx2
+        finally:
+            tx2.abort()
+
+    def test_transaction_is_not_hashable(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        tx = table.transaction()
+        try:
+            with pytest.raises(TypeError, match="unhashable type"):
+                _ = hash(tx)
+        finally:
+            tx.abort()

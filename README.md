@@ -149,6 +149,23 @@ print(len(table))
 
 Methods like `pop()`, `setdefault()`, and `update()` also work. The `keys()`, `values()`, and `items()` methods return sorted lists rather than views to maintain JSONLT's deterministic key ordering.
 
+## Equality
+
+Tables support value-based equality comparison:
+
+```python
+table1 = Table("users.jsonlt", key="id")
+table2 = Table("users.jsonlt", key="id")
+
+# Equal if same path, key specifier, and records
+if table1 == table2:
+    print("Tables have identical content")
+```
+
+Two tables are equal when they have the same resolved path, key specifier, and record state. Transactions are equal when they reference the same parent table instance and have identical snapshot state.
+
+Tables and transactions are mutable and therefore not hashable (cannot be used as dictionary keys or in sets).
+
 ## Finding records
 
 ```python
