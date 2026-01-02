@@ -14,7 +14,7 @@ from ._encoding import validate_no_surrogates
 from ._exceptions import LimitError, TransactionError
 from ._json import serialize_json, utf8_byte_length
 from ._keys import Key, KeySpecifier, validate_key_arity, validate_key_length
-from ._readable import ReadableMixin
+from ._mixin import TableMixin
 from ._records import build_tombstone, extract_key, validate_record
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from ._table import Table
 
 
-class Transaction(ReadableMixin):
+class Transaction(TableMixin):
     """A transaction for atomic operations on a JSONLT table.
 
     Transactions provide snapshot isolation: reads see a consistent snapshot
@@ -131,6 +131,16 @@ class Transaction(ReadableMixin):
         """Ensure the transaction is still active."""
         self._require_active()
 
+    @override
+    def _get_key_specifier(self) -> KeySpecifier:
+        """Return the key specifier for this transaction.
+
+        Returns:
+            The key specifier.
+        """
+        return self._key_specifier
+
+    @override
     def put(self, record: "JSONObject") -> None:
         """Insert or update a record in the transaction.
 
@@ -172,6 +182,7 @@ class Transaction(ReadableMixin):
         self._snapshot[key] = record_copy
         self._cached_sorted_keys = None
 
+    @override
     def delete(self, key: Key) -> bool:
         """Delete a record by key in the transaction.
 

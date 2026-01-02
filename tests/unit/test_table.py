@@ -1,4 +1,5 @@
 import time
+from collections.abc import MutableMapping
 from typing import TYPE_CHECKING
 
 import pytest
@@ -8,6 +9,9 @@ from jsonlt import FileError, InvalidKeyError, LimitError, Table
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
+
+    from jsonlt._json import JSONObject
+    from jsonlt._keys import Key
 
     from tests.fakes.fake_filesystem import FakeFileSystem
 
@@ -966,18 +970,18 @@ class TestTableMagicMethods:
         assert (1, 3.14) not in table
         assert (None, "x") not in table
 
-    def test_iter_yields_records_in_key_order(self, tmp_path: "Path") -> None:
+    def test_iter_yields_keys_in_key_order(self, tmp_path: "Path") -> None:
         table_path = tmp_path / "test.jsonlt"
         # Write in reverse order
         _ = table_path.write_text('{"id": "c"}\n{"id": "a"}\n{"id": "b"}\n')
         table = Table(table_path, key="id")
 
-        records = list(table)
+        keys = list(table)
 
-        assert len(records) == 3
-        assert records[0] == {"id": "a"}
-        assert records[1] == {"id": "b"}
-        assert records[2] == {"id": "c"}
+        assert len(keys) == 3
+        assert keys[0] == "a"
+        assert keys[1] == "b"
+        assert keys[2] == "c"
 
     def test_iter_on_empty_table(self, make_table: "Callable[..., Table]") -> None:
         table = make_table()
@@ -1257,3 +1261,191 @@ class TestFileSystemEdgeCases:
         table.compact()
 
         assert table_path in fake_fs.files
+
+
+class TestTableMutableMapping:
+    def test_getitem_existing_key(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+
+        result = table["alice"]
+
+        assert result == {"id": "alice", "role": "admin"}
+
+    def test_getitem_missing_key_raises_keyerror(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with pytest.raises(KeyError) as exc_info:
+            _ = table["nonexistent"]
+
+        assert exc_info.value.args[0] == "nonexistent"
+
+    def test_setitem_with_matching_key(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        table["alice"] = {"id": "alice", "role": "admin"}
+
+        assert table.get("alice") == {"id": "alice", "role": "admin"}
+
+    def test_setitem_with_mismatched_key_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with pytest.raises(InvalidKeyError, match="key mismatch"):
+            table["alice"] = {"id": "bob", "role": "admin"}
+
+    def test_delitem_existing_key(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+
+        del table["alice"]
+
+        assert table.get("alice") is None
+
+    def test_delitem_missing_key_raises_keyerror(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with pytest.raises(KeyError) as exc_info:
+            del table["nonexistent"]
+
+        assert exc_info.value.args[0] == "nonexistent"
+
+    def test_isinstance_mutablemapping(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        assert isinstance(table, MutableMapping)
+
+    def test_values_returns_records_in_key_order(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "bob", "v": 2}\n{"id": "alice", "v": 1}\n')
+        table = Table(table_path, key="id")
+
+        result = table.values()
+
+        assert result == [{"id": "alice", "v": 1}, {"id": "bob", "v": 2}]
+
+    def test_pop_existing_key(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+
+        result = table.pop("alice")
+
+        assert result == {"id": "alice", "role": "admin"}
+        assert "alice" not in table
+
+    def test_pop_missing_key_with_default(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+        default: JSONObject = {"id": "default", "role": "none"}
+
+        result = table.pop("nonexistent", default)
+
+        assert result == default
+
+    def test_pop_missing_key_without_default_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with pytest.raises(KeyError):
+            _ = table.pop("nonexistent")
+
+    def test_pop_too_many_arguments_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with pytest.raises(TypeError, match="pop expected at most 2 arguments"):
+            _ = table.pop("key", {}, {})
+
+    def test_popitem_returns_first_key_value_pair(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "bob", "v": 2}\n{"id": "alice", "v": 1}\n')
+        table = Table(table_path, key="id")
+
+        result = table.popitem()
+
+        # Returns first in sorted order (alice comes before bob)
+        assert result == ("alice", {"id": "alice", "v": 1})
+        assert "alice" not in table
+        assert "bob" in table
+
+    def test_popitem_empty_table_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with pytest.raises(KeyError, match="table is empty"):
+            _ = table.popitem()
+
+    def test_setdefault_existing_key_returns_existing(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+        default: JSONObject = {"id": "alice", "role": "user"}
+
+        result = table.setdefault("alice", default)
+
+        assert result == {"id": "alice", "role": "admin"}
+
+    def test_setdefault_missing_key_inserts_and_returns(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+        default: JSONObject = {"id": "alice", "role": "admin"}
+
+        result = table.setdefault("alice", default)
+
+        assert result == default
+        assert table.get("alice") == default
+
+    def test_update_with_mapping(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+        mapping: dict[Key, JSONObject] = {
+            "alice": {"id": "alice", "role": "admin"},
+            "bob": {"id": "bob", "role": "user"},
+        }
+
+        table.update(mapping)
+
+        assert table.get("alice") == {"id": "alice", "role": "admin"}
+        assert table.get("bob") == {"id": "bob", "role": "user"}
+
+    def test_update_with_iterable(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+        items: list[tuple[str, JSONObject]] = [
+            ("alice", {"id": "alice", "role": "admin"}),
+            ("bob", {"id": "bob", "role": "user"}),
+        ]
+
+        table.update(items)
+
+        assert table.get("alice") == {"id": "alice", "role": "admin"}
+        assert table.get("bob") == {"id": "bob", "role": "user"}
+
+    def test_update_with_kwargs(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+
+        table.update(alice={"id": "alice", "role": "admin"})
+
+        assert table.get("alice") == {"id": "alice", "role": "admin"}
+
+    def test_update_with_none_is_noop(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+
+        table.update(None)
+
+        assert table.count() == 0
