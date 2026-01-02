@@ -1509,6 +1509,15 @@ class TestTableEquality:
 
         assert result is False
 
+    def test_eq_returns_not_implemented_for_non_table(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        result = table.__eq__("string")
+
+        assert result is NotImplemented
+
     def test_equal_relative_vs_absolute_path(
         self, tmp_path: "Path", monkeypatch: "pytest.MonkeyPatch"
     ) -> None:
