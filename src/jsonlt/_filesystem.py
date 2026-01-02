@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, Protocol, cast, runtime_checkable
 
-from ._exceptions import FileError
+from ._exceptions import FileError, LimitError
 from ._lock import exclusive_lock
 from ._writer import atomic_replace as _atomic_replace
 
@@ -144,13 +144,14 @@ class RealFileSystem:
         Args:
             path: Path to the file.
             max_size: Optional maximum file size to allow. If the file exceeds
-                this size, FileError is raised.
+                this size, LimitError is raised.
 
         Returns:
             The file contents as bytes.
 
         Raises:
-            FileError: If the file cannot be read or exceeds max_size.
+            FileError: If the file cannot be read.
+            LimitError: If the file size exceeds max_size.
         """
         if max_size is not None:
             try:
@@ -160,7 +161,7 @@ class RealFileSystem:
                 raise FileError(msg) from e
             if st.st_size > max_size:
                 msg = f"file size {st.st_size} exceeds maximum {max_size}"
-                raise FileError(msg)
+                raise LimitError(msg)
         try:
             return path.read_bytes()
         except OSError as e:

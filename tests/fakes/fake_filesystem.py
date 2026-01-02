@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar
 
-from jsonlt._exceptions import FileError
+from jsonlt._exceptions import FileError, LimitError
 from jsonlt._filesystem import FileStats, LockedFile
 
 if TYPE_CHECKING:
@@ -87,7 +87,7 @@ class FakeFileSystem:
         content = self.files[path].content
         if max_size is not None and len(content) > max_size:
             msg = f"file size {len(content)} exceeds maximum {max_size}"
-            raise FileError(msg)
+            raise LimitError(msg)
         return content
 
     def ensure_parent_dir(self, path: "Path") -> None:
