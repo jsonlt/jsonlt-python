@@ -37,19 +37,28 @@ Requires Python 3.10 or later.
 ```python
 from jsonlt import Table
 
-# Open or create a table
-table = Table("users.jsonlt", key="id")
-
-# Insert or update records
-table.put({"id": "alice", "role": "admin", "email": "alice@example.com"})
-table.put({"id": "bob", "role": "user", "email": "bob@example.com"})
+# Create a table with initial records
+table = Table.from_records(
+    "users.jsonlt",
+    [
+        {"id": "alice", "role": "admin", "email": "alice@example.com"},
+        {"id": "bob", "role": "user", "email": "bob@example.com"},
+    ],
+    key="id",
+)
 
 # Read records
 user = table.get("alice")  # Returns the record or None
 exists = table.has("bob")  # Returns True
 
+# Update a record
+table.put({"id": "alice", "role": "admin", "email": "alice@newdomain.com"})
+
 # Delete records (appends a tombstone)
 table.delete("bob")
+
+# Later, load the existing table
+table = Table.from_file("users.jsonlt")
 
 # Iterate over all records
 for record in table.all():
@@ -59,9 +68,11 @@ for record in table.all():
 The underlying file after these operations:
 
 ```jsonl
-{"id": "alice", "role": "admin", "email": "alice@example.com"}
-{"id": "bob", "role": "user", "email": "bob@example.com"}
-{"id": "bob", "$deleted": true}
+{"$jsonlt":{"key":"id","version":1}}
+{"id":"alice","email":"alice@example.com","role":"admin"}
+{"id":"bob","email":"bob@example.com","role":"user"}
+{"id":"alice","email":"alice@newdomain.com","role":"admin"}
+{"id":"bob","$deleted":true}
 ```
 
 ## When to use JSONLT
@@ -75,10 +86,14 @@ JSONLT is not a database. For large datasets, high write throughput, or complex 
 JSONLT supports multi-field compound keys for composite identifiers:
 
 ```python
-orders = Table("orders.jsonlt", key=("customer_id", "order_id"))
-
-orders.put({"customer_id": "alice", "order_id": 1, "total": 99.99})
-orders.put({"customer_id": "alice", "order_id": 2, "total": 149.99})
+orders = Table.from_records(
+    "orders.jsonlt",
+    [
+        {"customer_id": "alice", "order_id": 1, "total": 99.99},
+        {"customer_id": "alice", "order_id": 2, "total": 149.99},
+    ],
+    key=("customer_id", "order_id"),
+)
 
 order = orders.get(("alice", 1))
 ```
@@ -136,23 +151,25 @@ table.reload()
 
 ### Table
 
-| Method                        | Description                    |
-|-------------------------------|--------------------------------|
-| `Table(path, key)`            | Open or create a table         |
-| `get(key)`                    | Get a record by key, or `None` |
-| `has(key)`                    | Check if a key exists          |
-| `put(record)`                 | Insert or update a record      |
-| `delete(key)`                 | Delete a record                |
-| `all()`                       | Iterate all records            |
-| `keys()`                      | Iterate all keys               |
-| `items()`                     | Iterate (key, record) pairs    |
-| `count()`                     | Number of records              |
-| `find(predicate, limit=None)` | Find matching records          |
-| `find_one(predicate)`         | Find first match               |
-| `transaction()`               | Start a transaction            |
-| `compact()`                   | Remove historical entries      |
-| `clear()`                     | Remove all records             |
-| `reload()`                    | Reload from disk               |
+| Method                                   | Description                    |
+|------------------------------------------|--------------------------------|
+| `Table(path, key)`                       | Open or create a table         |
+| `Table.from_records(path, records, key)` | Create table with records      |
+| `Table.from_file(path)`                  | Load existing table            |
+| `get(key)`                               | Get a record by key, or `None` |
+| `has(key)`                               | Check if a key exists          |
+| `put(record)`                            | Insert or update a record      |
+| `delete(key)`                            | Delete a record                |
+| `all()`                                  | Iterate all records            |
+| `keys()`                                 | Iterate all keys               |
+| `items()`                                | Iterate (key, record) pairs    |
+| `count()`                                | Number of records              |
+| `find(predicate, limit=None)`            | Find matching records          |
+| `find_one(predicate)`                    | Find first match               |
+| `transaction()`                          | Start a transaction            |
+| `compact()`                              | Remove historical entries      |
+| `clear()`                                | Remove all records             |
+| `reload()`                               | Reload from disk               |
 
 The `Table` class also supports `len(table)`, `key in table`, and `for record in table`.
 
@@ -194,8 +211,6 @@ The JSONLT format draws from related work including [BEADS](https://github.com/s
 ### AI disclosure
 
 The development of this library involved AI language models, specifically Claude (Anthropic). AI tools contributed to drafting code, tests, and documentation. Human authors made all design decisions and final implementations, and they reviewed, edited, and validated AI-generated content. The authors take full responsibility for the correctness of this software.
-
-This disclosure promotes transparency about modern software development practices.
 
 ## License
 

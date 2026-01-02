@@ -7,10 +7,10 @@ with JSONLT files. It handles file loading, auto-reload, and read/write operatio
 # pyright: reportImportCycles=false
 
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 from typing_extensions import override
 
-from ._constants import MAX_RECORD_SIZE
+from ._constants import JSONLT_VERSION, MAX_RECORD_SIZE
 from ._encoding import validate_no_surrogates
 from ._exceptions import (
     ConflictError,
@@ -20,7 +20,7 @@ from ._exceptions import (
     TransactionError,
 )
 from ._filesystem import FileSystem, RealFileSystem
-from ._header import serialize_header
+from ._header import Header, serialize_header
 from ._json import serialize_json, utf8_byte_length
 from ._keys import (
     Key,
@@ -31,13 +31,14 @@ from ._keys import (
     validate_key_length,
 )
 from ._readable import ReadableMixin
-from ._reader import parse_table_content, read_table_file
+from ._reader import parse_table_content
 from ._records import build_tombstone, extract_key, validate_record
 from ._state import compute_logical_state
 
 if TYPE_CHECKING:
-    from ._header import Header
-    from ._json import JSONObject
+    from collections.abc import Iterable, Mapping
+
+    from ._json import JSONObject, JSONValue
     from ._transaction import Transaction
 
 __all__ = ["Table"]
@@ -144,6 +145,176 @@ class Table(ReadableMixin):
         # Initial load
         self._load(key)
 
+    @classmethod
+    def from_records(  # noqa: PLR0913
+        cls,
+        path: "Path | str",
+        records: "Mapping[str, object] | Iterable[Mapping[str, object]]",
+        key: KeySpecifier,
+        *,
+        auto_reload: bool = True,
+        lock_timeout: float | None = None,
+        max_file_size: int | None = None,
+        _fs: "FileSystem | None" = None,
+    ) -> "Table":
+        """Create a table from a list of records.
+
+        Creates a new file at the specified path with the given records.
+        All records are validated before writing, and the file is written
+        atomically. If any record is invalid, no file is written.
+
+        A header with the key specifier is always written, making the
+        file self-describing.
+
+        Args:
+            path: Path to create the JSONLT file at.
+            records: A single record dict or iterable of record dicts.
+            key: Key specifier for the table.
+            auto_reload: If True (default), check for file changes before
+                each read operation and reload if necessary.
+            lock_timeout: Maximum seconds to wait for file lock on write
+                operations. None means wait indefinitely.
+            max_file_size: Maximum allowed file size in bytes when loading.
+                If the file exceeds this limit, LimitError is raised.
+            _fs: Internal filesystem abstraction for testing. Do not use.
+
+        Returns:
+            A new Table instance backed by the created file.
+
+        Raises:
+            InvalidKeyError: If any record is missing required key fields,
+                has invalid key values, or contains $-prefixed fields.
+            LimitError: If any key exceeds 1024 bytes or any record exceeds 1 MiB.
+            FileError: If the file cannot be created.
+
+        Example:
+            >>> table = Table.from_records(
+            ...     "users.jsonlt",
+            ...     [
+            ...         {"id": "alice", "role": "admin"},
+            ...         {"id": "bob", "role": "user"},
+            ...     ],
+            ...     key="id",
+            ... )
+            >>> table.count()
+            2
+        """
+        file_path = Path(path) if isinstance(path, str) else path
+        fs = RealFileSystem() if _fs is None else _fs
+        normalized_key = normalize_key_specifier(key)
+
+        # Normalize records: single dict -> list
+        if isinstance(records, dict):
+            record_list = cast("list[Mapping[str, object]]", [records])
+        else:
+            record_list = cast("list[Mapping[str, object]]", list(records))
+
+        # Build lines: header + validated records
+        lines: list[str] = [
+            serialize_header(Header(version=JSONLT_VERSION, key=normalized_key))
+        ]
+
+        for index, record in enumerate(record_list):
+            try:
+                record_value = cast("JSONValue", record)
+                record_obj = cast("JSONObject", record)
+
+                validate_no_surrogates(record_value)
+                validate_record(record_obj, normalized_key)
+                extracted_key = extract_key(record_obj, normalized_key)
+                validate_key_length(extracted_key)
+
+                serialized = serialize_json(record)
+                if utf8_byte_length(serialized) > MAX_RECORD_SIZE:
+                    msg = f"record size exceeds maximum {MAX_RECORD_SIZE}"
+                    raise LimitError(msg)  # noqa: TRY301
+
+                lines.append(serialized)
+            except (InvalidKeyError, LimitError) as e:  # noqa: PERF203
+                msg = f"record at index {index}: {e}"
+                raise type(e)(msg) from e
+
+        fs.ensure_parent_dir(file_path)
+        fs.atomic_replace(file_path, lines)
+
+        return cls(
+            file_path,
+            key=normalized_key,
+            auto_reload=auto_reload,
+            lock_timeout=lock_timeout,
+            max_file_size=max_file_size,
+            _fs=_fs,
+        )
+
+    @classmethod
+    def from_file(
+        cls,
+        path: "Path | str",
+        key: "KeySpecifier | None" = None,
+        *,
+        auto_reload: bool = True,
+        lock_timeout: float | None = None,
+        max_file_size: int | None = None,
+        _fs: "FileSystem | None" = None,
+    ) -> "Table":
+        """Load a table from an existing file.
+
+        Opens an existing JSONLT file. If the file has a header with a
+        key specifier, uses that key. An explicit key parameter can be
+        provided to override or when the file has no header.
+
+        This method is semantically equivalent to the Table constructor
+        but explicitly indicates the intent to load an existing file
+        (as opposed to potentially creating a new one).
+
+        Args:
+            path: Path to the existing JSONLT file.
+            key: Optional key specifier. If None, auto-detected from the
+                file header. If provided, must match the header key (if any).
+            auto_reload: If True (default), check for file changes before
+                each read operation and reload if necessary.
+            lock_timeout: Maximum seconds to wait for file lock on write
+                operations. None means wait indefinitely.
+            max_file_size: Maximum allowed file size in bytes when loading.
+                If the file exceeds this limit, LimitError is raised.
+            _fs: Internal filesystem abstraction for testing. Do not use.
+
+        Returns:
+            A Table instance backed by the file.
+
+        Raises:
+            FileError: If the file does not exist or cannot be read.
+            InvalidKeyError: If no key specifier can be determined (file
+                has no header and key not provided), or if the provided
+                key doesn't match the header key.
+            ParseError: If the file contains invalid content.
+
+        Example:
+            >>> # File has header with key
+            >>> table = Table.from_file("users.jsonlt")
+            >>> table.key_specifier
+            'id'
+
+            >>> # File without header, provide key explicitly
+            >>> table = Table.from_file("data.jsonlt", key="name")
+        """
+        file_path = Path(path) if isinstance(path, str) else path
+        fs = RealFileSystem() if _fs is None else _fs
+
+        stats = fs.stat(file_path)
+        if not stats.exists:
+            msg = f"file not found: {file_path}"
+            raise FileError(msg)
+
+        return cls(
+            file_path,
+            key=key,
+            auto_reload=auto_reload,
+            lock_timeout=lock_timeout,
+            max_file_size=max_file_size,
+            _fs=_fs,
+        )
+
     def _load(self, caller_key: "KeySpecifier | None" = None) -> None:
         """Load or reload the table from disk.
 
@@ -160,13 +331,13 @@ class Table(ReadableMixin):
             InvalidKeyError: If the key specifier is invalid or mismatches
                 the header, or if the file has operations but no key specifier.
         """
-        if not self._path.exists():
+        stats = self._fs.stat(self._path)
+        if not stats.exists:
             self._load_empty_table(caller_key)
             return
 
-        header, operations = read_table_file(
-            self._path, max_file_size=self._max_file_size
-        )
+        raw_bytes = self._fs.read_bytes(self._path, max_size=self._max_file_size)
+        header, operations = parse_table_content(raw_bytes)
         self._header = header
         self._update_file_stats()
 
