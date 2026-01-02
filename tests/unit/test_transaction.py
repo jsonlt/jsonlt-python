@@ -1393,6 +1393,18 @@ class TestTransactionEquality:
         finally:
             tx.abort()
 
+    def test_eq_returns_not_implemented_for_non_transaction(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        tx = table.transaction()
+        try:
+            result = tx.__eq__("string")
+            assert result is NotImplemented
+        finally:
+            tx.abort()
+
     def test_finalized_vs_active_not_equal(self, tmp_path: "Path") -> None:
         path1 = tmp_path / "test1.jsonlt"
         path2 = tmp_path / "test2.jsonlt"
