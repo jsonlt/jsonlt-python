@@ -1283,6 +1283,14 @@ class TestTableMutableMapping:
 
         assert exc_info.value.args[0] == "nonexistent"
 
+    def test_get_with_custom_default(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+        default: JSONObject = {"id": "default", "role": "none"}
+
+        result = table.get("nonexistent", default)
+
+        assert result == default
+
     def test_setitem_with_matching_key(
         self, make_table: "Callable[..., Table]"
     ) -> None:
@@ -1536,3 +1544,18 @@ class TestTableEquality:
 
         with pytest.raises(TypeError, match="unhashable type"):
             _ = hash(table)
+
+    def test_eq_with_different_auto_reload_after_external_change(
+        self, tmp_path: "Path"
+    ) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "v": 1}\n')
+
+        table1 = Table(table_path, key="id", auto_reload=True)
+        table2 = Table(table_path, key="id", auto_reload=False)
+
+        # Wait a bit to ensure mtime changes
+        time.sleep(0.01)
+        _ = table_path.write_text('{"id": "alice", "v": 2}\n')
+
+        assert table1 != table2

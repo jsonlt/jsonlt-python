@@ -1425,6 +1425,34 @@ class TestTransactionEquality:
         finally:
             tx2.abort()
 
+    def test_eq_same_table_different_writes(self, tmp_path: "Path") -> None:
+        """Two transactions from same table with different writes are unequal.
+
+        Verifies that sequential transactions from the same table with different
+        write sequences have different snapshots and compare as unequal.
+        """
+        path = tmp_path / "test.jsonlt"
+        _ = path.write_text('{"id": "alice", "v": 1}\n')
+
+        table = Table(path, key="id")
+
+        # First transaction: add bob
+        tx1 = table.transaction()
+        tx1.put({"id": "bob", "v": 2})
+        tx1.commit()
+
+        # Second transaction: add carol (different write)
+        tx2 = table.transaction()
+        tx2.put({"id": "carol", "v": 3})
+
+        try:
+            # tx1 is committed (has alice+bob in snapshot)
+            # tx2 is active (has alice+bob+carol in snapshot)
+            # They differ in both finalized status and snapshot content
+            assert tx1 != tx2
+        finally:
+            tx2.abort()
+
     def test_transaction_is_not_hashable(
         self, make_table: "Callable[..., Table]"
     ) -> None:
