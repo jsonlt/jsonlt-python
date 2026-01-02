@@ -200,8 +200,7 @@ class TableMixin(ABC):
             A list of all records, sorted by key.
         """
         self._prepare_read()
-        state = self._get_state()
-        return [state[k] for k in self._sorted_keys()]
+        return self._sorted_records()
 
     def items(self) -> "list[tuple[Key, JSONObject]]":
         """Get all key-value pairs in key order.
