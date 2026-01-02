@@ -1449,3 +1449,81 @@ class TestTableMutableMapping:
         table.update(None)
 
         assert table.count() == 0
+
+
+class TestTableEquality:
+    def test_equal_tables_same_path_and_state(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "v": 1}\n')
+
+        table1 = Table(table_path, key="id")
+        table2 = Table(table_path, key="id")
+
+        assert table1 == table2
+
+    def test_not_equal_different_paths(self, tmp_path: "Path") -> None:
+        path1 = tmp_path / "test1.jsonlt"
+        path2 = tmp_path / "test2.jsonlt"
+        _ = path1.write_text('{"id": "alice", "v": 1}\n')
+        _ = path2.write_text('{"id": "alice", "v": 1}\n')
+
+        table1 = Table(path1, key="id")
+        table2 = Table(path2, key="id")
+
+        assert table1 != table2
+
+    def test_not_equal_different_key_specifier(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "name": "Alice"}\n')
+
+        table1 = Table(table_path, key="id")
+        table2 = Table(table_path, key="name")
+
+        assert table1 != table2
+
+    def test_not_equal_different_state(self, tmp_path: "Path") -> None:
+        path1 = tmp_path / "test1.jsonlt"
+        path2 = tmp_path / "test2.jsonlt"
+        _ = path1.write_text('{"id": "alice", "v": 1}\n')
+        _ = path2.write_text('{"id": "alice", "v": 2}\n')
+
+        table1 = Table(path1, key="id")
+        table2 = Table(path2, key="id")
+
+        assert table1 != table2
+
+    def test_equal_empty_tables(self, tmp_path: "Path") -> None:
+        table_path = tmp_path / "test.jsonlt"
+
+        table1 = Table(table_path, key="id")
+        table2 = Table(table_path, key="id")
+
+        assert table1 == table2
+
+    def test_eq_with_non_table_returns_false(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        result = table == "string"
+
+        assert result is False
+
+    def test_equal_relative_vs_absolute_path(
+        self, tmp_path: "Path", monkeypatch: "pytest.MonkeyPatch"
+    ) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "v": 1}\n')
+
+        # Change to tmp_path directory to create a relative path
+        monkeypatch.chdir(tmp_path)
+        table1 = Table(table_path, key="id")
+        table2 = Table("test.jsonlt", key="id")
+
+        assert table1 == table2
+
+    def test_table_is_not_hashable(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+
+        with pytest.raises(TypeError, match="unhashable type"):
+            _ = hash(table)

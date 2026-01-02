@@ -317,3 +317,31 @@ class Transaction(TableMixin):
         return (
             f"Transaction({self._table._path!r}, key={self._key_specifier!r}, {status})"  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
         )
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        """Equality based on parent table identity, finalized status, snapshot.
+
+        Two transactions are equal if they reference the same parent Table
+        instance, have the same finalized status, and have identical snapshot
+        state (which includes any buffered writes).
+
+        Args:
+            other: Object to compare with.
+
+        Returns:
+            True if equal, False otherwise. Returns NotImplemented for others.
+        """
+        if not isinstance(other, Transaction):
+            return NotImplemented
+        return (
+            self._table is other._table
+            and self._finalized == other._finalized
+            and self._snapshot == other._snapshot
+        )
+
+    @override
+    def __hash__(self) -> int:
+        """Transaction is mutable and not hashable."""
+        msg = f"unhashable type: '{type(self).__name__}'"
+        raise TypeError(msg)

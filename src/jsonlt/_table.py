@@ -976,3 +976,33 @@ class Table(TableMixin):
     def __repr__(self) -> str:
         """Return a string representation of the table."""
         return f"Table({self._path!r}, key={self._key_specifier!r})"
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        """Value equality based on path, key_specifier, and current state.
+
+        Two tables are equal if they have the same resolved path, key specifier,
+        and identical record state. Triggers auto-reload on self before comparison
+        to ensure current disk state is reflected.
+
+        Args:
+            other: Object to compare with.
+
+        Returns:
+            True if equal, False otherwise. Returns NotImplemented for non-Tables.
+        """
+        if not isinstance(other, Table):
+            return NotImplemented
+        self._maybe_reload()
+        other._maybe_reload()
+        return (
+            self._path.resolve() == other._path.resolve()
+            and self._key_specifier == other._key_specifier
+            and self._state == other._state
+        )
+
+    @override
+    def __hash__(self) -> int:
+        """Table is mutable and not hashable."""
+        msg = f"unhashable type: '{type(self).__name__}'"
+        raise TypeError(msg)

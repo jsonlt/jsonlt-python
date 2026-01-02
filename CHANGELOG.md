@@ -9,7 +9,9 @@ and this project adheres to [PEP 440](https://peps.python.org/pep-0440/).
 
 ### Added
 
+- `Table.from_records()` and `Table.from_file()` factory methods for convenient table initialization
 - Dictionary-like access for `Table` and `Transaction` (`table[key]`, `table[key] = record`, `del table[key]`, `pop`, `popitem`, `setdefault`, `update`)
+- Value-based equality for `Table` and `Transaction` (`==` compares path, key specifier, and records)
 
 ## [0.1.0] - 2025-12-31
 
