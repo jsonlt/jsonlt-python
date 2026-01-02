@@ -1,3 +1,4 @@
+from collections.abc import MutableMapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from os import stat_result
 
     from jsonlt._json import JSONObject
+    from jsonlt._keys import Key
 
 
 class TestTransactionCreation:
@@ -820,19 +822,19 @@ class TestTransactionMagicMethods:
             assert (1, 3.14) not in tx
             assert (None, "x") not in tx
 
-    def test_iter_yields_records_in_key_order(self, tmp_path: "Path") -> None:
+    def test_iter_yields_keys_in_key_order(self, tmp_path: "Path") -> None:
         table_path = tmp_path / "test.jsonlt"
         # Write in reverse order
         _ = table_path.write_text('{"id": "c"}\n{"id": "a"}\n{"id": "b"}\n')
         table = Table(table_path, key="id")
 
         with table.transaction() as tx:
-            records = list(tx)
+            keys = list(tx)
 
-            assert len(records) == 3
-            assert records[0] == {"id": "a"}
-            assert records[1] == {"id": "b"}
-            assert records[2] == {"id": "c"}
+            assert len(keys) == 3
+            assert keys[0] == "a"
+            assert keys[1] == "b"
+            assert keys[2] == "c"
 
     def test_iter_on_empty_transaction(
         self, make_table: "Callable[..., Table]"
@@ -1091,3 +1093,212 @@ class TestConflictErrorProperties:
         result = repr(exc_info.value)
         assert "ConflictError(" in result
         assert "key=('acme', 1)" in result
+
+
+class TestTransactionMutableMapping:
+    def test_getitem_existing_key(self, tmp_path: Path) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+
+        with table.transaction() as tx:
+            result = tx["alice"]
+            assert result == {"id": "alice", "role": "admin"}
+
+    def test_getitem_missing_key_raises_keyerror(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with table.transaction() as tx:
+            with pytest.raises(KeyError) as exc_info:
+                _ = tx["nonexistent"]
+            assert exc_info.value.args[0] == "nonexistent"
+
+    def test_setitem_with_matching_key(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with table.transaction() as tx:
+            tx["alice"] = {"id": "alice", "role": "admin"}
+            assert tx.get("alice") == {"id": "alice", "role": "admin"}
+
+        assert table.get("alice") == {"id": "alice", "role": "admin"}
+
+    def test_setitem_with_mismatched_key_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with (
+            table.transaction() as tx,
+            pytest.raises(InvalidKeyError, match="key mismatch"),
+        ):
+            tx["alice"] = {"id": "bob", "role": "admin"}
+
+    def test_delitem_existing_key(self, tmp_path: Path) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+
+        with table.transaction() as tx:
+            del tx["alice"]
+            assert tx.get("alice") is None
+
+        assert table.get("alice") is None
+
+    def test_delitem_missing_key_raises_keyerror(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with table.transaction() as tx:
+            with pytest.raises(KeyError) as exc_info:
+                del tx["nonexistent"]
+            assert exc_info.value.args[0] == "nonexistent"
+
+    def test_isinstance_mutablemapping(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with table.transaction() as tx:
+            assert isinstance(tx, MutableMapping)
+
+    def test_values_returns_records_in_key_order(self, tmp_path: Path) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "bob", "v": 2}\n{"id": "alice", "v": 1}\n')
+        table = Table(table_path, key="id")
+
+        with table.transaction() as tx:
+            result = tx.values()
+            assert result == [{"id": "alice", "v": 1}, {"id": "bob", "v": 2}]
+
+    def test_pop_existing_key(self, tmp_path: Path) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+
+        with table.transaction() as tx:
+            result = tx.pop("alice")
+            assert result == {"id": "alice", "role": "admin"}
+            assert "alice" not in tx
+
+        assert "alice" not in table
+
+    def test_pop_missing_key_with_default(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+        default: JSONObject = {"id": "default", "role": "none"}
+
+        with table.transaction() as tx:
+            result = tx.pop("nonexistent", default)
+            assert result == default
+
+    def test_pop_missing_key_without_default_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with table.transaction() as tx, pytest.raises(KeyError):
+            _ = tx.pop("nonexistent")
+
+    def test_pop_too_many_arguments_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with (
+            table.transaction() as tx,
+            pytest.raises(TypeError, match="pop expected at most 2 arguments"),
+        ):
+            _ = tx.pop("key", {}, {})
+
+    def test_popitem_returns_first_key_value_pair(self, tmp_path: Path) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "bob", "v": 2}\n{"id": "alice", "v": 1}\n')
+        table = Table(table_path, key="id")
+
+        with table.transaction() as tx:
+            result = tx.popitem()
+            # Returns first in sorted order (alice comes before bob)
+            assert result == ("alice", {"id": "alice", "v": 1})
+            assert "alice" not in tx
+            assert "bob" in tx
+
+    def test_popitem_empty_table_raises(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+
+        with (
+            table.transaction() as tx,
+            pytest.raises(KeyError, match="table is empty"),
+        ):
+            _ = tx.popitem()
+
+    def test_setdefault_existing_key_returns_existing(self, tmp_path: Path) -> None:
+        table_path = tmp_path / "test.jsonlt"
+        _ = table_path.write_text('{"id": "alice", "role": "admin"}\n')
+        table = Table(table_path, key="id")
+        default: JSONObject = {"id": "alice", "role": "user"}
+
+        with table.transaction() as tx:
+            result = tx.setdefault("alice", default)
+            assert result == {"id": "alice", "role": "admin"}
+
+    def test_setdefault_missing_key_inserts_and_returns(
+        self, make_table: "Callable[..., Table]"
+    ) -> None:
+        table = make_table()
+        default: JSONObject = {"id": "alice", "role": "admin"}
+
+        with table.transaction() as tx:
+            result = tx.setdefault("alice", default)
+            assert result == default
+            assert tx.get("alice") == default
+
+        assert table.get("alice") == default
+
+    def test_update_with_mapping(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+        mapping: dict[Key, JSONObject] = {
+            "alice": {"id": "alice", "role": "admin"},
+            "bob": {"id": "bob", "role": "user"},
+        }
+
+        with table.transaction() as tx:
+            tx.update(mapping)
+            assert tx.get("alice") == {"id": "alice", "role": "admin"}
+            assert tx.get("bob") == {"id": "bob", "role": "user"}
+
+        assert table.get("alice") == {"id": "alice", "role": "admin"}
+
+    def test_update_with_iterable(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+        items: list[tuple[str, JSONObject]] = [
+            ("alice", {"id": "alice", "role": "admin"}),
+            ("bob", {"id": "bob", "role": "user"}),
+        ]
+
+        with table.transaction() as tx:
+            tx.update(items)
+            assert tx.get("alice") == {"id": "alice", "role": "admin"}
+
+        assert table.get("bob") == {"id": "bob", "role": "user"}
+
+    def test_update_with_kwargs(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+
+        with table.transaction() as tx:
+            tx.update(alice={"id": "alice", "role": "admin"})
+            assert tx.get("alice") == {"id": "alice", "role": "admin"}
+
+    def test_update_with_none_is_noop(self, make_table: "Callable[..., Table]") -> None:
+        table = make_table()
+
+        with table.transaction() as tx:
+            tx.update(None)
+            assert tx.count() == 0

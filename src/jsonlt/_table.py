@@ -30,7 +30,7 @@ from ._keys import (
     validate_key_arity,
     validate_key_length,
 )
-from ._readable import ReadableMixin
+from ._mixin import TableMixin
 from ._reader import parse_table_content
 from ._records import build_tombstone, extract_key, validate_record
 from ._state import compute_logical_state
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 __all__ = ["Table"]
 
 
-class Table(ReadableMixin):
+class Table(TableMixin):
     """A JSONLT table backed by a file.
 
     The Table class provides the primary interface for working with JSONLT
@@ -564,6 +564,19 @@ class Table(ReadableMixin):
             raise InvalidKeyError(msg)
         return self._key_specifier
 
+    @override
+    def _get_key_specifier(self) -> KeySpecifier:
+        """Return the key specifier for this table.
+
+        Returns:
+            The key specifier.
+
+        Raises:
+            InvalidKeyError: If no key specifier is set.
+        """
+        return self._require_key_specifier()
+
+    @override
     def put(self, record: "JSONObject") -> None:
         """Insert or update a record.
 
@@ -663,6 +676,7 @@ class Table(ReadableMixin):
                     raise FileError(msg) from None
                 return self._write_with_lock(line, key, record, _retries=_retries + 1)
 
+    @override
     def delete(self, key: Key) -> bool:
         """Delete a record by key.
 

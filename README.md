@@ -121,6 +121,34 @@ except ConflictError as e:
     print(f"Conflict on key: {e.key}")
 ```
 
+## Dictionary-like access
+
+Tables can be used like dictionaries:
+
+```python
+# Get a record (raises KeyError if not found)
+user = table["alice"]
+
+# Set a record (key in record must match)
+table["alice"] = {"id": "alice", "role": "admin"}
+
+# Delete a record
+del table["bob"]
+
+# Check membership
+if "alice" in table:
+    print("Found alice")
+
+# Iterate over keys
+for key in table:
+    print(key)
+
+# Get record count
+print(len(table))
+```
+
+Methods like `pop()`, `setdefault()`, and `update()` also work. The `keys()`, `values()`, and `items()` methods return sorted lists rather than views to maintain JSONLT's deterministic key ordering.
+
 ## Finding records
 
 ```python
@@ -171,7 +199,7 @@ table.reload()
 | `clear()`                                | Remove all records             |
 | `reload()`                               | Reload from disk               |
 
-The `Table` class also supports `len(table)`, `key in table`, and `for record in table`.
+Tables support `table[key]`, `table[key] = record`, `del table[key]`, `len(table)`, `key in table`, and `for key in table`.
 
 ### Transaction
 
@@ -183,6 +211,8 @@ The `Table` class also supports `len(table)`, `key in table`, and `for record in
 | `delete(key)` | Buffer a deletion |
 | `commit()`    | Write to disk     |
 | `abort()`     | Discard changes   |
+
+Transactions support the same dictionary-like access as tables.
 
 ### Exceptions
 
