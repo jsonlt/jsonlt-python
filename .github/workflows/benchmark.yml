@@ -72,7 +72,7 @@ jobs:
           enable-cache: true
 
       - name: Run benchmarks
-        uses: CodSpeedHQ/action@346a2d8a8d9d38909abd0bc3d23f773110f076ad # v4.4.1
+        uses: CodSpeedHQ/action@e736f0d2aeb36da38e9f08eca4dff7967408d154 # v4.8.2
         with:
           mode: simulation
           run: uv run pytest -m "${{ matrix.marker || 'benchmark' }}" -k "${{ matrix.filter }}" --codspeed
